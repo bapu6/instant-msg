@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Keyboard,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -122,6 +124,17 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, [contact, contactStatus]);
+
+  // Auto-scroll to latest message when keyboard opens
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(showEvent, () => {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleAcceptContact = async () => {
     if (!currentUser) return;
@@ -314,7 +327,8 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       style={styles.container}
     >
       {/* Header */}
@@ -436,6 +450,8 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
             />
           )}
           contentContainerStyle={styles.messagesList}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -458,7 +474,7 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
           <Text style={styles.blockedInputText}>You have blocked this contact. Unblock to send messages.</Text>
         </View>
       ) : (
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
           {/* Attachment Button */}
           <TouchableOpacity
             style={styles.attachButton}
@@ -475,6 +491,11 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
             placeholderTextColor={theme.colors.textTertiary}
             value={inputText}
             onChangeText={setInputText}
+            onFocus={() => {
+              setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+              }, 150);
+            }}
             multiline
             maxLength={1000}
           />

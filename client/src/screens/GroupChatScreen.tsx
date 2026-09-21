@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Keyboard,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -56,6 +58,17 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
       callService.off('new-group-message', handleIncomingGroupMsg);
     };
   }, [group.id]);
+
+  // Auto-scroll to latest message when keyboard opens
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(showEvent, () => {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
+    return () => sub.remove();
+  }, []);
 
   const loadMessages = async () => {
     try {
@@ -158,7 +171,8 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       style={styles.container}
     >
       {/* Header */}
@@ -216,6 +230,8 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
           data={messages}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => {
             const isMe = item.sender === currentUser?.username;
@@ -242,7 +258,7 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
       )}
 
       {/* Bottom Chat Input */}
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         <TouchableOpacity
           style={styles.attachButton}
           onPress={handlePickDocument}
@@ -257,6 +273,11 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
           placeholderTextColor={theme.colors.textMuted}
           value={inputText}
           onChangeText={setInputText}
+          onFocus={() => {
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 150);
+          }}
           multiline
         />
 
