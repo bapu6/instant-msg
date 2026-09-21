@@ -6,6 +6,9 @@ export interface User {
   email?: string | null;
   phone_number?: string | null;
   avatar: string;
+  last_seen?: string | null;
+  hide_presence?: boolean;
+  is_online?: boolean;
   created_at: string;
 }
 

@@ -13,7 +13,7 @@ import messageService from './services/messageService';
 import storageService from './services/storageService';
 import groupService from './services/groupService';
 import signalingService from './services/signalingService';
-import { initDb } from './db';
+import { initDb, query } from './db';
 import { MessageType, UploadedFileResponse } from './types';
 
 const app = express();
@@ -238,6 +238,58 @@ app.post('/api/user/link-profile', async (req: Request, res: Response): Promise<
   } catch (err: any) {
     console.error('Link profile error:', err.message);
     res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 2.6 Privacy: Hide / Show Online Presence & Last Seen
+app.post('/api/user/privacy', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId, hidePresence } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId is required' });
+    }
+    const result = await query(
+      `UPDATE users 
+       SET hide_presence = $1 
+       WHERE id = $2 
+       RETURNING id, username, display_name, email, phone_number, avatar, hide_presence, last_seen, created_at`,
+      [Boolean(hidePresence), userId]
+    );
+    const user = result.rows[0];
+    if (user) {
+      const isOnline = signalingService.isUserOnline(user.username);
+      signalingService.broadcastPresence(
+        user.username,
+        Boolean(hidePresence) ? false : isOnline,
+        Boolean(hidePresence) ? null : new Date().toISOString()
+      );
+    }
+    res.json({ success: true, user });
+  } catch (err: any) {
+    console.error('Privacy update error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2.7 Presence Query: Get Presence of a Specific User (XEP-0012 semantics)
+app.get('/api/presence/:username', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username } = req.params;
+    const userRes = await query(
+      `SELECT id, username, last_seen, hide_presence FROM users WHERE username = $1`,
+      [String(username).toLowerCase()]
+    );
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const user = userRes.rows[0];
+    const isOnline = signalingService.isUserOnline(user.username);
+    if (user.hide_presence) {
+      return res.json({ success: true, isOnline: false, lastSeen: null, hidePresence: true });
+    }
+    return res.json({ success: true, isOnline, lastSeen: user.last_seen, hidePresence: false });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

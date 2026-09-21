@@ -136,7 +136,9 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
               ? new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : 'Active',
             unreadCount: 0,
-            isOnline: true,
+            isOnline: Boolean(u.is_online && !u.hide_presence),
+            lastSeen: u.last_seen,
+            hidePresence: Boolean(u.hide_presence),
             isGroup: false,
             isDelivered: true,
             isRead: true,

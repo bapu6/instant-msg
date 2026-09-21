@@ -20,6 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
 import cryptoService, { readAssetBytes } from '../services/cryptoService';
 import MessageBubble from '../components/MessageBubble';
+import { formatLastSeen } from '../utils/presenceUtils';
 import { ChatContact, Message, AttachmentAsset, MessageType } from '../types';
 
 interface ChatScreenProps {
@@ -36,7 +37,35 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
   const [loading, setLoading] = useState<boolean>(true);
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [isContactOnline, setIsContactOnline] = useState<boolean>(contact.isOnline ?? false);
+  const [contactLastSeen, setContactLastSeen] = useState<string | null | undefined>(contact.lastSeen);
+  const [hidePresence, setHidePresence] = useState<boolean>(contact.hidePresence ?? false);
   const flatListRef = useRef<FlatList<Message>>(null);
+
+  // Poll live presence of the contact
+  useEffect(() => {
+    const contactUser = contact.username || contact.id;
+    if (!contactUser || contact.isGroup) return;
+
+    let isMounted = true;
+    async function updatePresence() {
+      try {
+        const pres = await api.getPresence(contactUser);
+        if (isMounted) {
+          setIsContactOnline(pres.isOnline);
+          setContactLastSeen(pres.lastSeen);
+          setHidePresence(pres.hidePresence);
+        }
+      } catch {}
+    }
+
+    updatePresence();
+    const presInterval = setInterval(updatePresence, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(presInterval);
+    };
+  }, [contact]);
 
   // Fetch messages from PostgreSQL
   const fetchMessages = async () => {
@@ -188,14 +217,22 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
             source={{ uri: contact.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
             style={styles.avatar}
           />
-          <View style={styles.onlineDot} />
+          {isContactOnline && !hidePresence && <View style={styles.onlineDot} />}
         </View>
 
         <View style={styles.headerInfo}>
           <Text style={styles.contactName} numberOfLines={1}>
             {contactDisplayName}
           </Text>
-          <Text style={styles.onlineStatus}>Active on XMPP</Text>
+          {hidePresence ? (
+            <Text style={styles.offlineStatus}>Offline</Text>
+          ) : isContactOnline ? (
+            <Text style={styles.activeNowStatus}>Active now</Text>
+          ) : (
+            <Text style={styles.offlineStatus}>
+              {formatLastSeen(contactLastSeen)}
+            </Text>
+          )}
         </View>
 
         <View style={styles.headerActions}>
@@ -336,9 +373,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.textPrimary,
   },
-  onlineStatus: {
+  activeNowStatus: {
     fontSize: 12,
-    color: theme.colors.online,
+    color: '#10B981',
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  offlineStatus: {
+    fontSize: 12,
+    color: theme.colors.textMuted || '#94A3B8',
     marginTop: 1,
   },
   headerActions: {

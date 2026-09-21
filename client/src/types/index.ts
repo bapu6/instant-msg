@@ -5,6 +5,9 @@ export interface User {
   email?: string | null;
   phone_number?: string | null;
   avatar?: string;
+  last_seen?: string | null;
+  hide_presence?: boolean;
+  is_online?: boolean;
   created_at?: string;
 }
 
@@ -36,6 +39,8 @@ export interface ChatContact {
   unreadCount: number;
   isOnline: boolean;
   isGroup: boolean;
+  lastSeen?: string | null;
+  hidePresence?: boolean;
   isDelivered?: boolean;
   isRead?: boolean;
   isTyping?: boolean;

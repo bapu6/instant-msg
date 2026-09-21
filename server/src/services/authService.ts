@@ -414,8 +414,9 @@ export async function linkOrUpdateProfile({
 }
 
 export async function getAllUsers(excludeUsername: string | null = null): Promise<SafeUser[]> {
+  const signalingService = require('./signalingService').default;
   let query = `
-    SELECT id, username, display_name, email, phone_number, avatar, created_at
+    SELECT id, username, display_name, email, phone_number, avatar, last_seen, hide_presence, created_at
     FROM users
   `;
   const params: string[] = [];
@@ -425,8 +426,23 @@ export async function getAllUsers(excludeUsername: string | null = null): Promis
   }
   query += ` ORDER BY display_name ASC`;
 
-  const result = await db.query<SafeUser>(query, params);
-  return result.rows;
+  const result = await db.query<User>(query, params);
+  return result.rows.map((u) => {
+    const isOnline = signalingService.isUserOnline(u.username);
+    const showPresence = !u.hide_presence;
+    return {
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+      email: u.email,
+      phone_number: u.phone_number,
+      avatar: u.avatar,
+      is_online: showPresence && isOnline,
+      last_seen: showPresence ? u.last_seen : null,
+      hide_presence: u.hide_presence,
+      created_at: u.created_at,
+    };
+  });
 }
 
 export default {

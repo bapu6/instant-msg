@@ -29,7 +29,7 @@ export default function RecentChats({ chats, onChatPress }: RecentChatsProps) {
           >
             <View style={styles.avatarContainer}>
               <Image source={{ uri: chat.avatar }} style={styles.avatar} />
-              {chat.isOnline && <View style={styles.onlineBadge} />}
+              {chat.isOnline && !chat.hidePresence && <View style={styles.onlineBadge} />}
             </View>
 
             <View style={styles.chatContent}>

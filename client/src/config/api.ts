@@ -184,6 +184,32 @@ export const api = {
     return data.user;
   },
 
+  async updatePrivacy(userId: number, hidePresence: boolean): Promise<User> {
+    const res = await fetch(`${API_BASE_URL}/api/user/privacy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, hidePresence }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to update privacy settings');
+    }
+    return data.user;
+  },
+
+  async getPresence(username: string): Promise<{ isOnline: boolean; lastSeen: string | null; hidePresence: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/api/presence/${encodeURIComponent(username)}`);
+    const data = await safeJson(res);
+    if (!res.ok || !data.success) {
+      return { isOnline: false, lastSeen: null, hidePresence: true };
+    }
+    return {
+      isOnline: Boolean(data.isOnline),
+      lastSeen: data.lastSeen,
+      hidePresence: Boolean(data.hidePresence),
+    };
+  },
+
   // Users
   async getUsers(excludeUsername: string | null = null): Promise<User[]> {
     const url = excludeUsername

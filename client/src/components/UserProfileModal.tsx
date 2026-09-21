@@ -11,6 +11,7 @@ import {
   Alert,
   ScrollView,
   Platform,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -39,9 +40,11 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.phone_number || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar || PRESET_AVATARS[0]);
+  const [hidePresence, setHidePresence] = useState<boolean>(currentUser?.hide_presence ?? false);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [updatingPrivacy, setUpdatingPrivacy] = useState(false);
 
   // Sync state whenever modal opens or currentUser changes
   React.useEffect(() => {
@@ -50,10 +53,26 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
       setPhoneNumber(currentUser.phone_number || '');
       setEmail(currentUser.email || '');
       setAvatarUrl(currentUser.avatar || PRESET_AVATARS[0]);
+      setHidePresence(currentUser.hide_presence ?? false);
     }
   }, [currentUser, visible]);
 
   if (!currentUser) return null;
+
+  const handleTogglePrivacy = async (value: boolean) => {
+    if (!currentUser.id) return;
+    setHidePresence(value);
+    setUpdatingPrivacy(true);
+    try {
+      const updated = await api.updatePrivacy(currentUser.id, value);
+      setCurrentUser(updated);
+    } catch (err: any) {
+      setHidePresence(!value);
+      Alert.alert('Privacy Update Error', err.message || 'Could not update privacy setting');
+    } finally {
+      setUpdatingPrivacy(false);
+    }
+  };
 
   const handlePickAvatar = async () => {
     try {
@@ -337,6 +356,34 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
                     </TouchableOpacity>
                   )}
                 </View>
+              </View>
+            </View>
+
+            {/* Privacy & Online Presence (XEP-0012 / XEP-0186) */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionLabel}>Privacy & Online Presence</Text>
+              </View>
+
+              <View style={[styles.infoRow, { borderBottomWidth: 0, paddingVertical: 4 }]}>
+                <View style={[styles.iconCircle, { backgroundColor: '#F3E8FF' }]}>
+                  <Ionicons name={hidePresence ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9333EA" />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.fieldLabel}>Hide Online Status & Last Seen</Text>
+                  <Text style={styles.privacyHint}>
+                    {hidePresence
+                      ? 'You appear offline. Your last seen timestamp is hidden from others.'
+                      : 'Contacts can see when you are active now and your last seen time.'}
+                  </Text>
+                </View>
+                <Switch
+                  value={hidePresence}
+                  onValueChange={handleTogglePrivacy}
+                  trackColor={{ false: '#CBD5E1', true: '#9333EA' }}
+                  thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
+                  disabled={updatingPrivacy}
+                />
               </View>
             </View>
 
@@ -642,6 +689,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.primary,
     fontWeight: '600',
+  },
+  privacyHint: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
   },
   editActions: {
     flexDirection: 'row',

@@ -38,6 +38,8 @@ export async function initDb(): Promise<void> {
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(30) UNIQUE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(150);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS hide_presence BOOLEAN DEFAULT FALSE;
       CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 
       CREATE TABLE IF NOT EXISTS messages (
