@@ -89,8 +89,3 @@ ON messages (recipient, created_at);
 CREATE INDEX IF NOT EXISTS idx_group_messages_group 
 ON group_messages (group_id, created_at);
 
--- Seed initial test users (admin only)
-INSERT INTO users (username, password, display_name, phone_number, avatar)
-VALUES 
-('admin', '$2b$10$d8VWmTH1mS2PJSxzngQrmurxJ3i5I3xHKfTNRVxs5XJ2ZACW/wjTe', 'System Admin', '+910000000000', 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80')
-ON CONFLICT (username) DO NOTHING;
