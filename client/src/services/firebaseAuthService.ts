@@ -6,22 +6,34 @@ import { User } from '../types';
 let confirmationResult: any = null;
 
 /**
- * Send SMS verification code directly via in-app OTP service.
- * Bypasses external browser reCAPTCHA redirects for a seamless in-app experience.
+ * Send real SMS verification code via Firebase Phone Auth on Mobile (v26 modular API),
+ * or fallback to backend API.
  */
 export async function sendFirebasePhoneOtp(
   phoneNumber: string
 ): Promise<{ success: boolean; isNativeFirebase: boolean }> {
   const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
 
-  console.log('📱 [In-App OTP] Requesting verification code for:', cleanPhone);
+  if (Platform.OS !== 'web') {
+    // @react-native-firebase/auth v26 uses a fully modular API (no default export)
+    const rnfAuth = require('@react-native-firebase/auth');
+    const { getAuth, signInWithPhoneNumber } = rnfAuth;
+
+    console.log('🔥 [Firebase Native] Requesting SMS OTP for:', cleanPhone);
+    const auth = getAuth();
+    confirmationResult = await signInWithPhoneNumber(auth, cleanPhone);
+    console.log('✅ [Firebase Native] SMS sent via Firebase');
+    return { success: true, isNativeFirebase: true };
+  }
+
+  // Web / fallback
   const res = await api.sendOtp(cleanPhone);
-  console.log('✅ [In-App OTP] Verification code generated/sent successfully');
   return { ...res, isNativeFirebase: false };
 }
 
 /**
- * Verify SMS code directly in-app, then complete login/registration.
+ * Verify SMS code via Firebase on Mobile (v26 modular API) or Backend,
+ * then complete login/registration with the backend.
  */
 export async function verifyFirebasePhoneOtp(
   phoneNumber: string,
@@ -31,7 +43,24 @@ export async function verifyFirebasePhoneOtp(
   const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
   const cleanCode = code.trim();
 
-  console.log('📱 [In-App OTP] Verifying code for:', cleanPhone);
+  if (Platform.OS !== 'web' && confirmationResult) {
+    try {
+      console.log('🔥 [Firebase Native] Confirming code with Firebase...');
+      const userCredential = await confirmationResult.confirm(cleanCode);
+      console.log('✅ [Firebase Native] Firebase confirmed user:', userCredential?.user?.uid);
+
+      // Firebase auth succeeded — register/login the user in our backend
+      const user = await api.phoneLogin(cleanPhone, displayName);
+      confirmationResult = null;
+      return user;
+    } catch (err: any) {
+      console.warn('⚠️ [Firebase Native] Confirmation failed:', err.message);
+      // If Firebase verification failed, try backend verify as fallback
+      return await api.verifyOtp(cleanPhone, cleanCode, displayName);
+    }
+  }
+
+  // Fallback
   return await api.verifyOtp(cleanPhone, cleanCode, displayName);
 }
 

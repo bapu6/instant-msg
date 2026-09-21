@@ -1,8 +1,22 @@
 import { exec } from 'child_process';
+import bcrypt from 'bcryptjs';
 import db from '../db';
 import { User, SafeUser, RegisterInput, LoginInput } from '../types';
 
 const XMPP_DOMAIN = process.env.XMPP_DOMAIN || 'localhost';
+const SALT_ROUNDS = 10;
+
+export async function hashPassword(password: string): Promise<string> {
+  return await bcrypt.hash(password, SALT_ROUNDS);
+}
+
+export async function verifyPassword(password: string, hashOrPlain: string): Promise<boolean> {
+  if (!hashOrPlain) return false;
+  if (hashOrPlain.startsWith('$2a$') || hashOrPlain.startsWith('$2b$')) {
+    return await bcrypt.compare(password, hashOrPlain);
+  }
+  return password === hashOrPlain;
+}
 
 /**
  * Register user in ejabberd container so they can connect via XMPP
@@ -38,7 +52,9 @@ export async function registerUser({
     avatar ||
     `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`;
 
-  // Insert into PostgreSQL
+  const hashedPassword = await hashPassword(password);
+
+  // Insert into PostgreSQL with bcrypt hash
   const query = `
     INSERT INTO users (username, password, display_name, avatar)
     VALUES ($1, $2, $3, $4)
@@ -46,7 +62,7 @@ export async function registerUser({
   `;
 
   try {
-    const result = await db.query<SafeUser>(query, [cleanUsername, password, name, avatarUrl]);
+    const result = await db.query<SafeUser>(query, [cleanUsername, hashedPassword, name, avatarUrl]);
     const user = result.rows[0];
 
     // Sync with ejabberd XMPP server
@@ -79,8 +95,14 @@ export async function loginUser({ username, password }: LoginInput): Promise<Saf
   }
 
   const user = result.rows[0];
-  if (user.password !== password) {
+  if (!user.password || !(await verifyPassword(password, user.password))) {
     throw new Error('Invalid username or password');
+  }
+
+  // If user had legacy plain-text password, auto-upgrade to bcrypt hash in DB
+  if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+    const newHash = await hashPassword(password);
+    db.query(`UPDATE users SET password = $1 WHERE id = $2`, [newHash, user.id]).catch(() => {});
   }
 
   // Ensure user is also registered in ejabberd in case it was created directly in DB
@@ -201,7 +223,8 @@ export async function loginOrRegisterWithPhone({
   const avatarUrl =
     avatar ||
     `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`;
-  const defaultPassword = `pass_${username}`;
+  const rawPassword = `pass_${username}`;
+  const hashedPassword = await hashPassword(rawPassword);
 
   const insertQuery = `
     INSERT INTO users (username, password, display_name, email, phone_number, avatar)
@@ -210,7 +233,7 @@ export async function loginOrRegisterWithPhone({
   `;
   const insertResult = await db.query<SafeUser>(insertQuery, [
     username,
-    defaultPassword,
+    hashedPassword,
     name,
     cleanEmail,
     cleanPhone,
@@ -218,7 +241,7 @@ export async function loginOrRegisterWithPhone({
   ]);
   const newUser = insertResult.rows[0];
 
-  syncEjabberdUser(username, defaultPassword).catch(() => {});
+  syncEjabberdUser(username, rawPassword).catch(() => {});
   return newUser;
 }
 
@@ -327,7 +350,8 @@ export async function loginOrRegisterWithGoogle({
   const avatarUrl =
     avatar ||
     `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`;
-  const defaultPassword = `pass_${username}`;
+  const rawPassword = `pass_${username}`;
+  const hashedPassword = await hashPassword(rawPassword);
 
   const insertQuery = `
     INSERT INTO users (username, password, display_name, email, phone_number, avatar)
@@ -336,7 +360,7 @@ export async function loginOrRegisterWithGoogle({
   `;
   const insertResult = await db.query<SafeUser>(insertQuery, [
     username,
-    defaultPassword,
+    hashedPassword,
     name,
     cleanEmail,
     cleanPhone,
@@ -344,7 +368,7 @@ export async function loginOrRegisterWithGoogle({
   ]);
   const newUser = insertResult.rows[0];
 
-  syncEjabberdUser(username, defaultPassword).catch(() => {});
+  syncEjabberdUser(username, rawPassword).catch(() => {});
   return newUser;
 }
 

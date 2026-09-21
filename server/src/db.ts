@@ -1,6 +1,7 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
 import path from 'path';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -126,9 +127,28 @@ export async function initDb(): Promise<void> {
 
       INSERT INTO users (username, password, display_name, phone_number, avatar)
       VALUES 
-      ('admin', 'adminpass', 'System Admin', '+910000000000', 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80')
+      ('admin', '$2b$10$d8VWmTH1mS2PJSxzngQrmurxJ3i5I3xHKfTNRVxs5XJ2ZACW/wjTe', 'System Admin', '+910000000000', 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80')
       ON CONFLICT (username) DO NOTHING;
     `);
+
+    // Auto-upgrade any legacy plaintext passwords to bcrypt hashes
+    try {
+      const unhashed = await pool.query<{ id: number; password: string }>(
+        `SELECT id, password FROM users WHERE password IS NOT NULL AND password NOT LIKE '$2a$%' AND password NOT LIKE '$2b$%'`
+      );
+      for (const row of unhashed.rows) {
+        if (row.password) {
+          const hashed = await bcrypt.hash(row.password, 10);
+          await pool.query(`UPDATE users SET password = $1 WHERE id = $2`, [hashed, row.id]);
+        }
+      }
+      if (unhashed.rows.length > 0) {
+        console.log(`🔒 Upgraded ${unhashed.rows.length} legacy plaintext user password(s) to bcrypt hashes in PostgreSQL.`);
+      }
+    } catch (upgradeErr: any) {
+      console.warn('⚠️ Could not check/upgrade existing passwords:', upgradeErr.message);
+    }
+
     console.log('✅ PostgreSQL database schema verified and migrated successfully.');
   } catch (err: any) {
     console.error('❌ Failed to initialize database schema:', err.message);
