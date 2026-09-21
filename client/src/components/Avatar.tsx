@@ -43,7 +43,10 @@ export default function Avatar({ uri, name, size = 40, style, isGroup = false }:
     );
   }
 
-  const initial = name && name.trim() ? name.trim().charAt(0).toUpperCase() : '';
+  // Strip leading '+' or non-alphanumeric prefix to ensure + is never rendered as initial
+  const cleanName = name ? name.trim().replace(/^\+/, '').trim() : '';
+  const match = cleanName.match(/[a-zA-Z]/) || cleanName.match(/[0-9]/);
+  const initial = match ? match[0].toUpperCase() : '';
   const bgColor = getBackgroundColor(name);
 
   return (
