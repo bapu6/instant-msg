@@ -14,6 +14,7 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from './Avatar';
 import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
@@ -39,7 +40,7 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
   const [displayName, setDisplayName] = useState(currentUser?.display_name || '');
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.phone_number || '');
   const [email, setEmail] = useState(currentUser?.email || '');
-  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar || PRESET_AVATARS[0]);
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar || '');
   const [hidePresence, setHidePresence] = useState<boolean>(currentUser?.hide_presence ?? false);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -52,7 +53,7 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
       setDisplayName(currentUser.display_name || '');
       setPhoneNumber(currentUser.phone_number || '');
       setEmail(currentUser.email || '');
-      setAvatarUrl(currentUser.avatar || PRESET_AVATARS[0]);
+      setAvatarUrl(currentUser.avatar || '');
       setHidePresence(currentUser.hide_presence ?? false);
     }
   }, [currentUser, visible]);
@@ -174,8 +175,10 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
             {/* Avatar & Main Name */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarWrapper}>
-                <Image
-                  source={{ uri: isEditing ? avatarUrl : (currentUser.avatar || avatarUrl) }}
+                <Avatar
+                  uri={isEditing ? avatarUrl : currentUser?.avatar}
+                  name={currentUser?.display_name || currentUser?.username}
+                  size={100}
                   style={styles.avatar}
                 />
                 {isEditing && (

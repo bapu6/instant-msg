@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from './Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import callService from '../services/callService';
@@ -192,12 +193,10 @@ export default function CallModal({
           ) : (
             <View style={styles.audioPlaceholder}>
               <View style={styles.avatarWrapper}>
-                <Image
-                  source={{
-                    uri:
-                      callState.remoteAvatar ||
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-                  }}
+                <Avatar
+                  uri={callState.remoteAvatar}
+                  name={callState.remoteDisplayName || callState.remoteUser}
+                  size={100}
                   style={styles.avatar}
                 />
               </View>

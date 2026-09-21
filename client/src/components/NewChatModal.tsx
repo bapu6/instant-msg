@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from './Avatar';
 import { theme } from '../theme/theme';
 import { SearchedUser, ChatContact } from '../types';
 import api from '../config/api';
@@ -152,10 +153,7 @@ export default function NewChatModal({ visible, onClose, onSelectUser }: NewChat
                 activeOpacity={0.7}
                 onPress={() => handlePickUser(item)}
               >
-                <Image
-                  source={{ uri: item.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
-                  style={styles.avatar}
-                />
+                <Avatar uri={item.avatar} name={item.display_name || item.username} size={44} style={styles.avatar} />
                 <View style={styles.userInfo}>
                   <View style={styles.nameRow}>
                     <Text style={styles.displayName}>{item.display_name || item.username}</Text>

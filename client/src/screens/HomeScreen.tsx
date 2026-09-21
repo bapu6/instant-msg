@@ -22,6 +22,7 @@ import NewGroupModal from '../components/NewGroupModal';
 import NewChatModal from '../components/NewChatModal';
 import UserProfileModal from '../components/UserProfileModal';
 import { useAuth } from '../context/AuthContext';
+import Avatar from '../components/Avatar';
 import api from '../config/api';
 import cryptoService from '../services/cryptoService';
 import { ChatContact, FilterType, StoryItem, ChatGroup, PendingRequestItem } from '../types';
@@ -86,7 +87,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
             id: conv.counterpart_username,
             username: conv.counterpart_username,
             name: conv.counterpart_name || conv.counterpart_username,
-            avatar: conv.counterpart_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            avatar: conv.counterpart_avatar || '',
             lastMessage: lastMsg,
             time: conv.created_at
               ? new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -115,7 +116,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
               id: contact.contact_username,
               username: contact.contact_username,
               name: contact.display_name || contact.contact_username,
-              avatar: contact.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+              avatar: contact.avatar || '',
               lastMessage: 'Tap to start a conversation',
               time: 'Contact',
               timestamp: 0,
@@ -136,7 +137,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
           id: `group_${g.id}`,
           username: `group_${g.id}`,
           name: g.name,
-          avatar: g.avatar || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150',
+          avatar: g.avatar || '',
           lastMessage: g.last_message || 'Group created • Tap to chat',
           time: g.last_message_time
             ? new Date(g.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -232,7 +233,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
           id: req.username,
           username: req.username,
           name: req.display_name,
-          avatar: req.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+          avatar: req.avatar || '',
           lastMessage: req.last_message || 'Message request accepted',
           time: 'Just now',
           unreadCount: 0,
@@ -356,12 +357,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
               <View style={styles.requestsList}>
                 {pendingRequests.map((req) => (
                   <View key={req.id} style={styles.requestItem}>
-                    <Image
-                      source={{
-                        uri: req.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-                      }}
-                      style={styles.requestAvatar}
-                    />
+                    <Avatar uri={req.avatar} name={req.display_name} size={42} style={styles.requestAvatar} />
                     <View style={styles.requestDetails}>
                       <Text style={styles.requestName}>{req.display_name}</Text>
                       <Text style={styles.requestHandle}>@{req.username}</Text>

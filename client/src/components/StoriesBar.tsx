@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { StoryItem } from '../types';
+import { useAuth } from '../context/AuthContext';
+import Avatar from './Avatar';
 
 const MOCK_STORIES: StoryItem[] = [
   { id: '1', name: 'David K.', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80', hasUnseen: true },
@@ -18,6 +20,7 @@ interface StoriesBarProps {
 }
 
 export default function StoriesBar({ onStoryPress, onAddStory }: StoriesBarProps) {
+  const { currentUser } = useAuth();
   return (
     <View style={styles.container}>
       <ScrollView 
@@ -28,8 +31,10 @@ export default function StoriesBar({ onStoryPress, onAddStory }: StoriesBarProps
         {/* Your Story item */}
         <TouchableOpacity style={styles.storyItem} onPress={onAddStory} activeOpacity={0.8}>
           <View style={styles.myStoryContainer}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' }}
+            <Avatar
+              uri={currentUser?.avatar}
+              name={currentUser?.display_name || currentUser?.username}
+              size={56}
               style={styles.storyAvatar}
             />
             <View style={styles.addIconCircle}>
@@ -51,7 +56,7 @@ export default function StoriesBar({ onStoryPress, onAddStory }: StoriesBarProps
               styles.storyRing, 
               story.hasUnseen ? styles.activeRing : styles.seenRing
             ]}>
-              <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
+              <Avatar uri={story.avatar} name={story.name} size={52} style={styles.storyAvatar} />
             </View>
             <Text style={styles.storyName} numberOfLines={1}>{story.name}</Text>
           </TouchableOpacity>

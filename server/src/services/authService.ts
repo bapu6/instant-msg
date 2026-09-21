@@ -48,9 +48,7 @@ export async function registerUser({
 
   const cleanUsername = username.trim().toLowerCase();
   const name = displayName && displayName.trim() ? displayName.trim() : cleanUsername;
-  const avatarUrl =
-    avatar ||
-    `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`;
+  const avatarUrl = avatar || null;
 
   const hashedPassword = await hashPassword(password);
 
@@ -221,9 +219,7 @@ export async function loginOrRegisterWithPhone({
   // 6. Otherwise create new user
   const username = cleanPhone.replace(/[^a-zA-Z0-9]/g, '');
   const name = displayName && displayName.trim() ? displayName.trim() : cleanPhone;
-  const avatarUrl =
-    avatar ||
-    `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`;
+  const avatarUrl = avatar || null;
   const rawPassword = `pass_${username}`;
   const hashedPassword = await hashPassword(rawPassword);
 
@@ -348,9 +344,7 @@ export async function loginOrRegisterWithGoogle({
   // 6. Otherwise create new combined user
   const username = defaultUsername || `user_${Date.now()}`;
   const name = displayName && displayName.trim() ? displayName.trim() : username;
-  const avatarUrl =
-    avatar ||
-    `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`;
+  const avatarUrl = avatar || null;
   const rawPassword = `pass_${username}`;
   const hashedPassword = await hashPassword(rawPassword);
 

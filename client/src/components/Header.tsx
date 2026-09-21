@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
+import Avatar from './Avatar';
 
 interface HeaderProps {
   onNotificationPress: () => void;
@@ -31,8 +32,10 @@ export default function Header({ onNotificationPress, onProfilePress }: HeaderPr
         onPress={onProfilePress}
       >
         <View style={styles.avatarWrapper}>
-          <Image
-            source={{ uri: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' }}
+          <Avatar
+            uri={currentUser?.avatar}
+            name={currentUser?.display_name || currentUser?.username}
+            size={40}
             style={styles.avatar}
           />
           <View style={styles.onlineBadge} />

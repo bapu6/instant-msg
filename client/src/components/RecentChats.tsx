@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { ChatContact } from '../types';
 
+import Avatar from './Avatar';
+
 interface RecentChatsProps {
   chats: ChatContact[];
   onChatPress: (chat: ChatContact) => void;
@@ -13,10 +15,7 @@ export default function RecentChats({ chats, onChatPress }: RecentChatsProps) {
   return (
     <View style={styles.container}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Messages</Text>
-        <TouchableOpacity activeOpacity={0.7}>
-          <Text style={styles.seeAllText}>See all ({chats.length})</Text>
-        </TouchableOpacity>
+        <Text style={styles.sectionTitle}>Messages</Text>
       </View>
 
       <View style={styles.chatList}>
@@ -28,7 +27,7 @@ export default function RecentChats({ chats, onChatPress }: RecentChatsProps) {
             onPress={() => onChatPress(chat)}
           >
             <View style={styles.avatarContainer}>
-              <Image source={{ uri: chat.avatar }} style={styles.avatar} />
+              <Avatar uri={chat.avatar} name={chat.name} size={48} isGroup={chat.isGroup} style={styles.avatar} />
               {chat.isOnline && !chat.hidePresence && <View style={styles.onlineBadge} />}
             </View>
 

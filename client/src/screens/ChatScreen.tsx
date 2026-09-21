@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
 import cryptoService, { readAssetBytes } from '../services/cryptoService';
 import MessageBubble from '../components/MessageBubble';
+import Avatar from '../components/Avatar';
 import { formatLastSeen } from '../utils/presenceUtils';
 import { ChatContact, Message, AttachmentAsset, MessageType } from '../types';
 
@@ -447,10 +448,7 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
         </TouchableOpacity>
 
         <View style={styles.avatarContainer}>
-          <Image
-            source={{ uri: contact.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
-            style={styles.avatar}
-          />
+          <Avatar uri={contact.avatar} name={contactDisplayName} size={40} style={styles.avatar} />
           {isContactOnline && !hidePresence && <View style={styles.onlineDot} />}
         </View>
 

@@ -29,7 +29,7 @@ export async function createGroup({
        RETURNING *`,
       [
         name,
-        avatar || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80',
+        avatar || null,
         description || '',
         created_by.toLowerCase(),
       ]

@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
+import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
 import cryptoService, { readAssetBytes } from '../services/cryptoService';
@@ -210,14 +211,7 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
         </TouchableOpacity>
 
         <View style={styles.groupInfo}>
-          <Image
-            source={{
-              uri:
-                group.avatar ||
-                'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80',
-            }}
-            style={styles.groupAvatar}
-          />
+          <Avatar uri={group.avatar} name={group.name} size={40} isGroup={true} style={styles.groupAvatar} />
           <View>
             <Text style={styles.groupName} numberOfLines={1}>
               {group.name}

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from './Avatar';
 import { theme } from '../theme/theme';
 
 export interface NotificationBannerData {
@@ -86,12 +87,7 @@ export default function InAppNotificationBanner({
           onPress(data.senderUsername);
         }}
       >
-        <Image
-          source={{
-            uri: data.senderAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-          }}
-          style={styles.avatar}
-        />
+        <Avatar uri={data.senderAvatar} name={data.senderName} size={40} style={styles.avatar} />
 
         <View style={styles.content}>
           <View style={styles.topRow}>
