@@ -468,11 +468,24 @@ export const api = {
         }
       }
 
+      let safeMime = asset.mimeType || 'application/octet-stream';
+      if (safeMime === '*/*' || !safeMime) {
+        const ext = (asset.name || '').split('.').pop()?.toLowerCase();
+        if (ext === 'jpg' || ext === 'jpeg') safeMime = 'image/jpeg';
+        else if (ext === 'png') safeMime = 'image/png';
+        else if (ext === 'gif') safeMime = 'image/gif';
+        else if (ext === 'webp') safeMime = 'image/webp';
+        else if (ext === 'mp4') safeMime = 'video/mp4';
+        else if (ext === 'mov') safeMime = 'video/quicktime';
+        else if (ext === 'pdf') safeMime = 'application/pdf';
+        else safeMime = 'application/octet-stream';
+      }
+
       const formData = new FormData();
       formData.append('file', {
         uri: fileUri,
         name: asset.name || 'upload.bin',
-        type: asset.mimeType || 'application/octet-stream',
+        type: safeMime,
       } as any);
 
       const res = await fetch(`${API_BASE_URL}/api/upload`, {

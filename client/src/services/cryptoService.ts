@@ -156,21 +156,9 @@ export async function readAssetBytes(asset: {
     return new Uint8Array(ab);
   }
 
-  // 2. Mobile (Android / iOS): Use expo-file-system to avoid React Native's Blob constructor issues
+  // 2. Mobile (Android & iOS): Use expo-file-system native readers
   if (Platform.OS !== 'web') {
-    // 2a. Expo SDK 57 File.bytes()
-    try {
-      const { File } = require('expo-file-system');
-      const file = new File(asset.uri);
-      const bytes = await file.bytes();
-      if (bytes && bytes.length > 0) {
-        return bytes;
-      }
-    } catch {
-      // Fall through to legacy
-    }
-
-    // 2b. Legacy FileSystem base64 read
+    // 2a. Legacy FileSystem base64 read (most reliable for content:// and file:// on Android)
     try {
       const FileSystemLegacy = require('expo-file-system/legacy');
       const base64 = await FileSystemLegacy.readAsStringAsync(asset.uri, {
@@ -180,11 +168,28 @@ export async function readAssetBytes(asset: {
         return base64ToUint8Array(base64);
       }
     } catch (err) {
-      console.warn('Legacy file system read failed:', err);
+      console.warn('[readAssetBytes] Legacy FileSystem read failed:', err);
+    }
+
+    // 2b. Expo SDK 57 File.bytes()
+    try {
+      const { File } = require('expo-file-system');
+      const file = new File(asset.uri);
+      const bytes = await file.bytes();
+      if (bytes && bytes.length > 0) {
+        return bytes;
+      }
+    } catch (err) {
+      console.warn('[readAssetBytes] Expo SDK 57 File.bytes() read failed:', err);
+    }
+
+    // On mobile, fetch() does NOT support content:// URIs in React Native and throws 'Unsupported file format'.
+    if (asset.uri.startsWith('content://') || asset.uri.startsWith('file://')) {
+      throw new Error('Unable to read selected file from mobile device storage.');
     }
   }
 
-  // 3. Fallback to fetch for web blob: or data: URIs
+  // 3. Fallback to fetch for web blob: or data: URIs only
   const res = await fetch(asset.uri);
   const ab = await res.arrayBuffer();
   return new Uint8Array(ab);

@@ -276,7 +276,8 @@ export default function AuthScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Login with Mobile Button (Below Google Sign In) */}
+              {/* Login with Mobile Button (Commented out per user request) */}
+              {/*
               <TouchableOpacity
                 style={styles.mobileLoginButton}
                 onPress={() => {
@@ -288,6 +289,7 @@ export default function AuthScreen() {
                 <Ionicons name="call-outline" size={18} color={theme.colors.primary || '#6366F1'} style={{ marginRight: 8 }} />
                 <Text style={styles.mobileLoginButtonText}>Login with Mobile Number</Text>
               </TouchableOpacity>
+              */}
             </>
           ) : (
             <>
