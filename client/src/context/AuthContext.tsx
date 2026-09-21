@@ -1,7 +1,7 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import api from '../config/api';
 import { User, AuthContextType } from '../types';
-
+import { saveUserSession, getUserSession, clearUserSession } from '../services/sessionStorage';
 import { sendFirebasePhoneOtp, verifyFirebasePhoneOtp } from '../services/firebaseAuthService';
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -13,14 +13,47 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Restore saved session on app startup
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const savedUser = await getUserSession();
+        if (mounted && savedUser) {
+          console.log('🔄 [AuthContext] Restored user session:', savedUser.username);
+          setCurrentUser(savedUser);
+        }
+      } catch (err) {
+        console.warn('[AuthContext] Error restoring user session:', err);
+      } finally {
+        if (mounted) {
+          setIsInitializing(false);
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSetCurrentUser = (user: User | null) => {
+    setCurrentUser(user);
+    if (user) {
+      saveUserSession(user);
+    } else {
+      clearUserSession();
+    }
+  };
 
   const login = async (username: string, password: string): Promise<User> => {
     setLoading(true);
     setError(null);
     try {
       const user = await api.login(username, password);
-      setCurrentUser(user);
+      handleSetCurrentUser(user);
       return user;
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -40,7 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     try {
       const user = await api.register(username, password, displayName, avatar);
-      setCurrentUser(user);
+      handleSetCurrentUser(user);
       return user;
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -65,7 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     try {
       const user = await verifyFirebasePhoneOtp(phoneNumber, code, displayName);
-      setCurrentUser(user);
+      handleSetCurrentUser(user);
       return user;
     } catch (err: any) {
       setError(err.message || 'OTP verification failed');
@@ -80,7 +113,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     try {
       const user = await api.phoneLogin(phoneNumber, displayName);
-      setCurrentUser(user);
+      handleSetCurrentUser(user);
       return user;
     } catch (err: any) {
       setError(err.message || 'Phone login failed');
@@ -96,7 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const { signInWithGoogle } = require('../services/googleAuthService');
       const user = await signInWithGoogle();
-      setCurrentUser(user);
+      handleSetCurrentUser(user);
       return user;
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
@@ -107,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = (): void => {
-    setCurrentUser(null);
+    handleSetCurrentUser(null);
     setError(null);
   };
 
@@ -116,6 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       value={{
         currentUser,
         loading,
+        isInitializing,
         error,
         login,
         register,
@@ -124,7 +158,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         phoneLogin,
         googleSignIn,
         logout,
-        setCurrentUser,
+        setCurrentUser: handleSetCurrentUser,
       }}
     >
       {children}

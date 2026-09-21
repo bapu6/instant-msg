@@ -26,7 +26,7 @@ const INITIAL_CALL_STATE: CallState = {
 };
 
 function MainNavigator() {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, loading, isInitializing } = useAuth();
   const [activeChat, setActiveChat] = useState<ChatContact | null>(null);
   const [activeGroup, setActiveGroup] = useState<ChatGroup | null>(null);
   const [callState, setCallState] = useState<CallState>(INITIAL_CALL_STATE);
@@ -148,6 +148,14 @@ function MainNavigator() {
     callService.rejectCall();
     setCallState(INITIAL_CALL_STATE);
   };
+
+  if (isInitializing) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   if (!currentUser) {
     return <AuthScreen />;

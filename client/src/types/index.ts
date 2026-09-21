@@ -79,6 +79,7 @@ export interface UploadResponse {
 export interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
+  isInitializing: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<User>;
   register: (username: string, password: string, displayName?: string, avatar?: string) => Promise<User>;
