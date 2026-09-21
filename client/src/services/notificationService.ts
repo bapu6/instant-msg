@@ -76,11 +76,12 @@ class NotificationService {
           title: senderName || 'New Message',
           body: messageBody || 'Sent you an attachment',
           data: data,
-          sound: true,
+          sound: 'default',
           badge: 1,
           categoryIdentifier: 'message',
+          ...(Platform.OS === 'android' ? { channelId: 'messages' } : {}),
         },
-        trigger: Platform.OS === 'android' ? { channelId: 'messages' } : null,
+        trigger: null,
       });
     } catch (err) {
       console.warn('[NotificationService] Failed to post notification:', err);
