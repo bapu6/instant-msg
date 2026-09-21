@@ -15,53 +15,28 @@ import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthScreen() {
-  const { login, register, googleSignIn /*, sendOtp, verifyOtp */ } = useAuth();
+  const { login, register, googleSignIn, sendOtp, verifyOtp, phoneLogin } = useAuth();
+
+  // Auth Method: 'email' or 'mobile'
+  const [authMethod, setAuthMethod] = useState<'email' | 'mobile'>('email');
 
   // Mode: 'login' (Sign In) or 'register' (Sign Up)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
-  // Form Fields
+  // Email/Password Form Fields
   const [emailOrUsername, setEmailOrUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
+
+  // Mobile / OTP Form Fields
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [otpCode, setOtpCode] = useState<string>('');
+  const [otpSent, setOtpSent] = useState<boolean>(false);
 
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [infoMsg, setInfoMsg] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState<boolean>(false);
-
-  /*
-  // ================= OTP VERIFICATION BLOCK (COMMENTED OUT FOR NOW) =================
-  // const [otpMode, setOtpMode] = useState<'phone' | 'otp'>('phone');
-  // const [phoneNumber, setPhoneNumber] = useState<string>('');
-  // const [otpCode, setOtpCode] = useState<string>('');
-
-  // const handleSendOtp = async () => {
-  //   setErrorMsg('');
-  //   setIsSubmitting(true);
-  //   try {
-  //     await sendOtp(phoneNumber);
-  //     setOtpMode('otp');
-  //   } catch (err: any) {
-  //     setErrorMsg(err.message || 'Failed to send OTP');
-  //   } finally {
-  //     setIsSubmitting(false);
-  //   }
-  // };
-
-  // const handleVerifyOtp = async () => {
-  //   setErrorMsg('');
-  //   setIsSubmitting(true);
-  //   try {
-  //     await verifyOtp(phoneNumber, otpCode, displayName);
-  //   } catch (err: any) {
-  //     setErrorMsg(err.message || 'OTP verification failed');
-  //   } finally {
-  //     setIsSubmitting(false);
-  //   }
-  // };
-  // =================================================================================
-  */
 
   // Email / Password Login or Register
   const handleEmailAuth = async () => {
@@ -110,6 +85,44 @@ export default function AuthScreen() {
     }
   };
 
+  // Mobile OTP: Send Code
+  const handleSendOtp = async () => {
+    setErrorMsg('');
+    setInfoMsg('');
+    if (!phoneNumber.trim()) {
+      setErrorMsg('Please enter your mobile phone number');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await sendOtp(phoneNumber.trim());
+      setOtpSent(true);
+      setInfoMsg(`Verification code sent to ${phoneNumber.trim()}`);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to send OTP code.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Mobile OTP: Verify & Complete Login
+  const handleVerifyOtp = async () => {
+    setErrorMsg('');
+    setInfoMsg('');
+    if (!otpCode.trim()) {
+      setErrorMsg('Please enter the verification code');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await verifyOtp(phoneNumber.trim(), otpCode.trim(), displayName.trim() || undefined);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Verification failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -144,122 +157,248 @@ export default function AuthScreen() {
 
         {/* Card Container */}
         <View style={styles.card}>
-          {/* Auth Mode Toggle Tabs */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, authMode === 'login' && styles.activeTab]}
-              onPress={() => {
-                setAuthMode('login');
-                setErrorMsg('');
-              }}
-            >
-              <Text style={[styles.tabText, authMode === 'login' && styles.activeTabText]}>
-                Sign In
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, authMode === 'register' && styles.activeTab]}
-              onPress={() => {
-                setAuthMode('register');
-                setErrorMsg('');
-              }}
-            >
-              <Text style={[styles.tabText, authMode === 'register' && styles.activeTabText]}>
-                Create Account
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Display Name (Register Mode Only) */}
-          {authMode === 'register' && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Display Name</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Alex Rivera"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                  autoCapitalize="words"
-                />
+          {authMethod === 'email' ? (
+            <>
+              {/* Auth Mode Toggle Tabs (Sign In / Create Account) */}
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[styles.tab, authMode === 'login' && styles.activeTab]}
+                  onPress={() => {
+                    setAuthMode('login');
+                    setErrorMsg('');
+                  }}
+                >
+                  <Text style={[styles.tabText, authMode === 'login' && styles.activeTabText]}>
+                    Sign In
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tab, authMode === 'register' && styles.activeTab]}
+                  onPress={() => {
+                    setAuthMode('register');
+                    setErrorMsg('');
+                  }}
+                >
+                  <Text style={[styles.tabText, authMode === 'register' && styles.activeTabText]}>
+                    Create Account
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </View>
+
+              {/* Display Name (Register Mode Only) */}
+              {authMode === 'register' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Display Name</Text>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g. Alex Rivera"
+                      placeholderTextColor={theme.colors.textTertiary}
+                      value={displayName}
+                      onChangeText={setDisplayName}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Email / Username Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email or Username</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="user@example.com"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={emailOrUsername}
+                    onChangeText={setEmailOrUsername}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              </View>
+
+              {/* Password Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    onSubmitEditing={handleEmailAuth}
+                  />
+                </View>
+              </View>
+
+              {/* Submit Button */}
+              <TouchableOpacity
+                style={[styles.submitButton, isSubmitting && styles.disabledButton]}
+                onPress={handleEmailAuth}
+                disabled={isSubmitting || isGoogleSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.submitButtonText}>
+                    {authMode === 'login' ? 'Sign In' : 'Create Account'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {/* OR Divider */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* Google Sign-In Button */}
+              <TouchableOpacity
+                style={[styles.googleButton, isGoogleSubmitting && styles.disabledButton]}
+                onPress={handleGoogleSignIn}
+                disabled={isSubmitting || isGoogleSubmitting}
+              >
+                {isGoogleSubmitting ? (
+                  <ActivityIndicator color={theme.colors.textPrimary} />
+                ) : (
+                  <>
+                    <Ionicons name="logo-google" size={18} color="#EA4335" style={{ marginRight: 10 }} />
+                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Login with Mobile Button (Below Google Sign In) */}
+              <TouchableOpacity
+                style={styles.mobileLoginButton}
+                onPress={() => {
+                  setAuthMethod('mobile');
+                  setErrorMsg('');
+                  setInfoMsg('');
+                }}
+              >
+                <Ionicons name="call-outline" size={18} color={theme.colors.primary || '#6366F1'} style={{ marginRight: 8 }} />
+                <Text style={styles.mobileLoginButtonText}>Login with Mobile Number</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {/* Mobile Auth Form */}
+              <View style={styles.mobileHeaderRow}>
+                <Ionicons name="phone-portrait-outline" size={24} color={theme.colors.primary || '#6366F1'} />
+                <Text style={styles.mobileTitle}>Mobile Number Login</Text>
+              </View>
+
+              {!otpSent ? (
+                <>
+                  {/* Phone Number Input */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Mobile Phone Number</Text>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="call-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="+91 9876543210"
+                        placeholderTextColor={theme.colors.textTertiary}
+                        value={phoneNumber}
+                        onChangeText={setPhoneNumber}
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Optional Display Name */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Display Name (Optional)</Text>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Your Name"
+                        placeholderTextColor={theme.colors.textTertiary}
+                        value={displayName}
+                        onChangeText={setDisplayName}
+                      />
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.submitButton, isSubmitting && styles.disabledButton]}
+                    onPress={handleSendOtp}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>Send OTP Code</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  {/* OTP Verification Code Input */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Verification Code (OTP)</Text>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="key-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter 6-digit code"
+                        placeholderTextColor={theme.colors.textTertiary}
+                        value={otpCode}
+                        onChangeText={setOtpCode}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.submitButton, isSubmitting && styles.disabledButton]}
+                    onPress={handleVerifyOtp}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>Verify & Login</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.resendLink}
+                    onPress={() => {
+                      setOtpSent(false);
+                      setOtpCode('');
+                    }}
+                  >
+                    <Text style={styles.resendLinkText}>Change Phone Number</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Back to Email / Google Login */}
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => {
+                  setAuthMethod('email');
+                  setOtpSent(false);
+                  setErrorMsg('');
+                  setInfoMsg('');
+                }}
+              >
+                <Ionicons name="arrow-back" size={16} color={theme.colors.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={styles.backButtonText}>Back to Email & Google Login</Text>
+              </TouchableOpacity>
+            </>
           )}
-
-          {/* Email / Username Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email or Username</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="user@example.com"
-                placeholderTextColor={theme.colors.textTertiary}
-                value={emailOrUsername}
-                onChangeText={setEmailOrUsername}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-          </View>
-
-          {/* Password Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor={theme.colors.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                onSubmitEditing={handleEmailAuth}
-              />
-            </View>
-          </View>
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, isSubmitting && styles.disabledButton]}
-            onPress={handleEmailAuth}
-            disabled={isSubmitting || isGoogleSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.submitButtonText}>
-                {authMode === 'login' ? 'Sign In' : 'Create Account'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* OR Divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google Sign-In Button */}
-          <TouchableOpacity
-            style={[styles.googleButton, isGoogleSubmitting && styles.disabledButton]}
-            onPress={handleGoogleSignIn}
-            disabled={isSubmitting || isGoogleSubmitting}
-          >
-            {isGoogleSubmitting ? (
-              <ActivityIndicator color={theme.colors.textPrimary} />
-            ) : (
-              <>
-                <Ionicons name="logo-google" size={18} color="#EA4335" style={{ marginRight: 10 }} />
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
         </View>
 
         {/* Footer info */}
@@ -463,6 +602,54 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: theme.colors.textPrimary || '#1E293B',
+  },
+  mobileLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: theme.colors.border || '#E2E8F0',
+    borderRadius: 12,
+    height: 48,
+    marginTop: 12,
+  },
+  mobileLoginButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary || '#6366F1',
+  },
+  mobileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  mobileTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary || '#1E293B',
+    marginLeft: 10,
+  },
+  resendLink: {
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  resendLinkText: {
+    fontSize: 13,
+    color: theme.colors.primary || '#6366F1',
+    fontWeight: '600',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    paddingVertical: 8,
+  },
+  backButtonText: {
+    fontSize: 13,
+    color: theme.colors.textSecondary || '#64748B',
+    fontWeight: '600',
   },
   footerContainer: {
     alignItems: 'center',

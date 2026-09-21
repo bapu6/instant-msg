@@ -17,6 +17,7 @@ export async function signInWithGoogle(): Promise<User> {
     const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApps()[0];
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
 
     console.log('🌐 [Google Web] Launching Google sign-in popup...');
     const result = await signInWithPopup(auth, provider);
@@ -63,6 +64,13 @@ export async function signInWithGoogle(): Promise<User> {
 
   // Check Google Play Services availability
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+  // Clear existing session first to ensure the Google account picker dialog opens every time
+  try {
+    await GoogleSignin.signOut();
+  } catch (e) {
+    // Ignore error if user wasn't signed in
+  }
 
   // Trigger native Google account picker
   const signInResult = await GoogleSignin.signIn();
