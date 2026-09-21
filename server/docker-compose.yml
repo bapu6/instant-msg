@@ -6,7 +6,7 @@ services:
     environment:
       - EJABBERD_DOMAIN=${XMPP_DOMAIN:-localhost}
       - EJABBERD_ADMINS=${EJABBERD_ADMINS:-admin@localhost}
-      - EJABBERD_USERS=${EJABBERD_USERS:-admin@localhost:adminpass}
+      - EJABBERD_USERS=${EJABBERD_USERS}
     ports:
       - "5222:5222"   # XMPP Client-to-Server (c2s)
       - "5280:5280"   # HTTP, WebSocket (/ws), BOSH (/bosh), Admin (/admin)
@@ -22,7 +22,7 @@ services:
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-instant_msg}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -41,7 +41,7 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:-instant_msg}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
       - UPLOAD_DIR=${UPLOAD_DIR:-/app/uploads}
       - AWS_REGION=${AWS_REGION:-}
