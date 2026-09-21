@@ -18,6 +18,7 @@ import QuickActions from '../components/QuickActions';
 import RecentChats from '../components/RecentChats';
 import BottomNavBar from '../components/BottomNavBar';
 import NewGroupModal from '../components/NewGroupModal';
+import UserProfileModal from '../components/UserProfileModal';
 import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
 import { ChatContact, FilterType, StoryItem, ChatGroup } from '../types';
@@ -100,6 +101,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
   const [dbChats, setDbChats] = useState<ChatContact[]>([]);
   const [rawGroups, setRawGroups] = useState<ChatGroup[]>([]);
   const [isNewGroupModalVisible, setIsNewGroupModalVisible] = useState(false);
+  const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
 
   // Load registered contacts, groups, and conversations from PostgreSQL
   useEffect(() => {
@@ -235,7 +237,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
 
       <Header
         onNotificationPress={() => Alert.alert('Notifications', 'PostgreSQL and XMPP connected.')}
-        onProfilePress={() => Alert.alert('Profile', `Logged in as @${currentUser?.username || ''}`)}
+        onProfilePress={() => setIsProfileModalVisible(true)}
       />
 
       <ScrollView
@@ -283,6 +285,11 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
             onSelectGroup(newGroup);
           }
         }}
+      />
+
+      <UserProfileModal
+        visible={isProfileModalVisible}
+        onClose={() => setIsProfileModalVisible(false)}
       />
     </SafeAreaView>
   );

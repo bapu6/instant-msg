@@ -2,6 +2,7 @@ export interface User {
   id: number;
   username: string;
   display_name?: string;
+  email?: string | null;
   phone_number?: string | null;
   avatar?: string;
   created_at?: string;

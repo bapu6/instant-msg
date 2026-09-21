@@ -25,8 +25,9 @@ export async function signInWithGoogle(): Promise<User> {
     const email = fbUser.email || '';
     const displayName = fbUser.displayName || email.split('@')[0] || 'Google User';
     const avatar = fbUser.photoURL || undefined;
+    const phoneNumber = fbUser.phoneNumber || undefined;
 
-    return await api.googleLogin(email, displayName, avatar);
+    return await api.googleLogin(email, displayName, avatar, phoneNumber);
   }
 
   // Mobile (Android/iOS): @react-native-google-signin + @react-native-firebase/auth v26 modular API
@@ -77,11 +78,16 @@ export async function signInWithGoogle(): Promise<User> {
   const userCredential = await signInWithCredential(auth, googleCredential);
   const fbUser = userCredential.user;
 
-  const email = fbUser.email || '';
-  const displayName = fbUser.displayName || email.split('@')[0] || 'Google User';
-  const avatar = fbUser.photoURL || undefined;
+  const email = fbUser.email || signInResult.data?.user?.email || '';
+  const displayName =
+    fbUser.displayName ||
+    signInResult.data?.user?.name ||
+    email.split('@')[0] ||
+    'Google User';
+  const avatar = fbUser.photoURL || signInResult.data?.user?.photo || undefined;
+  const phoneNumber = fbUser.phoneNumber || undefined;
 
-  return await api.googleLogin(email, displayName, avatar);
+  return await api.googleLogin(email, displayName, avatar, phoneNumber);
 }
 
 export default {

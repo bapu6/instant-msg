@@ -177,7 +177,7 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response): Promise<an
 // 2.3 Direct Phone Login (e.g. verified by Firebase client-side SDK)
 app.post('/api/auth/phone-login', async (req: Request, res: Response): Promise<any> => {
   try {
-    const { phoneNumber, displayName, avatar } = req.body;
+    const { phoneNumber, displayName, email, avatar } = req.body;
     if (!phoneNumber) {
       return res.status(400).json({ success: false, error: 'Phone number is required' });
     }
@@ -185,6 +185,7 @@ app.post('/api/auth/phone-login', async (req: Request, res: Response): Promise<a
     const user = await authService.loginOrRegisterWithPhone({
       phoneNumber,
       displayName,
+      email,
       avatar,
     });
 
@@ -195,10 +196,10 @@ app.post('/api/auth/phone-login', async (req: Request, res: Response): Promise<a
   }
 });
 
-// 2.4 Google Authentication: Login / Register
+// 2.4 Google Authentication: Login / Register (with auto-merge)
 app.post('/api/auth/google-login', async (req: Request, res: Response): Promise<any> => {
   try {
-    const { email, displayName, avatar } = req.body;
+    const { email, displayName, avatar, phoneNumber } = req.body;
     if (!email) {
       return res.status(400).json({ success: false, error: 'Email is required for Google Sign-In' });
     }
@@ -207,11 +208,35 @@ app.post('/api/auth/google-login', async (req: Request, res: Response): Promise<
       email,
       displayName,
       avatar,
+      phoneNumber,
     });
 
     res.json({ success: true, user });
   } catch (err: any) {
     console.error('Google login error:', err.message);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 2.5 Link or Update Profile (Merge accounts if phone or email matches another user)
+app.post('/api/user/link-profile', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId, email, phoneNumber, displayName, avatar } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId is required' });
+    }
+
+    const user = await authService.linkOrUpdateProfile({
+      userId: parseInt(userId, 10),
+      email,
+      phoneNumber,
+      displayName,
+      avatar,
+    });
+
+    res.json({ success: true, user });
+  } catch (err: any) {
+    console.error('Link profile error:', err.message);
     res.status(400).json({ success: false, error: err.message });
   }
 });

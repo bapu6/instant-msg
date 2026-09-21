@@ -139,11 +139,11 @@ export const api = {
     return data.user;
   },
 
-  async phoneLogin(phoneNumber: string, displayName?: string): Promise<User> {
+  async phoneLogin(phoneNumber: string, displayName?: string, email?: string): Promise<User> {
     const res = await fetch(`${API_BASE_URL}/api/auth/phone-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber, displayName }),
+      body: JSON.stringify({ phoneNumber, displayName, email }),
     });
     const data = await safeJson(res);
     if (!res.ok || !data.success) {
@@ -152,15 +152,34 @@ export const api = {
     return data.user;
   },
 
-  async googleLogin(email: string, displayName?: string, avatar?: string): Promise<User> {
+  async googleLogin(email: string, displayName?: string, avatar?: string, phoneNumber?: string): Promise<User> {
     const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, displayName, avatar }),
+      body: JSON.stringify({ email, displayName, avatar, phoneNumber }),
     });
     const data = await safeJson(res);
     if (!res.ok || !data.success) {
       throw new Error(data.error || 'Google login failed');
+    }
+    return data.user;
+  },
+
+  async linkProfile(params: {
+    userId: number;
+    email?: string;
+    phoneNumber?: string;
+    displayName?: string;
+    avatar?: string;
+  }): Promise<User> {
+    const res = await fetch(`${API_BASE_URL}/api/user/link-profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await safeJson(res);
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to update / merge profile');
     }
     return data.user;
   },

@@ -37,6 +37,8 @@ export async function initDb(): Promise<void> {
       );
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(30) UNIQUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(150);
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 
       CREATE TABLE IF NOT EXISTS messages (
         id SERIAL PRIMARY KEY,

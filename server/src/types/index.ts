@@ -3,6 +3,7 @@ export interface User {
   username: string;
   password?: string;
   display_name: string;
+  email?: string | null;
   phone_number?: string | null;
   avatar: string;
   created_at: string;
@@ -13,6 +14,7 @@ export type SafeUser = Omit<User, 'password'>;
 export interface PhoneAuthInput {
   phoneNumber: string;
   displayName?: string;
+  email?: string;
   avatar?: string;
 }
 

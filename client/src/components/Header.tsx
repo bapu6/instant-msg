@@ -38,8 +38,10 @@ export default function Header({ onNotificationPress, onProfilePress }: HeaderPr
           <View style={styles.onlineBadge} />
         </View>
         <View style={styles.welcomeTextGroup}>
-          <Text style={styles.greeting}>Connected as</Text>
-          <Text style={styles.userName}>{currentUser?.display_name || currentUser?.username || 'User'}</Text>
+          <Text style={styles.greeting} numberOfLines={1}>
+            {currentUser?.email || currentUser?.phone_number || 'Connected as'}
+          </Text>
+          <Text style={styles.userName} numberOfLines={1}>{currentUser?.display_name || currentUser?.username || 'User'}</Text>
         </View>
       </TouchableOpacity>
 
