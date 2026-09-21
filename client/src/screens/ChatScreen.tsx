@@ -40,7 +40,36 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
   const [isContactOnline, setIsContactOnline] = useState<boolean>(contact.isOnline ?? false);
   const [contactLastSeen, setContactLastSeen] = useState<string | null | undefined>(contact.lastSeen);
   const [hidePresence, setHidePresence] = useState<boolean>(contact.hidePresence ?? false);
+  const [contactStatus, setContactStatus] = useState<string>(contact.contactStatus || 'none');
+  const [initiatedBy, setInitiatedBy] = useState<string | undefined>(contact.initiatedBy);
   const flatListRef = useRef<FlatList<Message>>(null);
+
+  // Check contact relationship and mark messages as read if accepted
+  useEffect(() => {
+    const contactUser = contact.username || contact.id;
+    if (!currentUser || !contactUser || contact.isGroup) return;
+
+    let isMounted = true;
+    async function checkStatus() {
+      try {
+        const res = await api.getContactStatus(currentUser!.username, contactUser);
+        if (isMounted) {
+          setContactStatus(res.status);
+          setInitiatedBy(res.initiated_by);
+
+          // If accepted, immediately mark incoming messages as read
+          if (res.status === 'accepted') {
+            api.markMessagesRead(currentUser!.username, contactUser).catch(() => {});
+          }
+        }
+      } catch {}
+    }
+
+    checkStatus();
+    return () => {
+      isMounted = false;
+    };
+  }, [contact, currentUser]);
 
   // Poll live presence of the contact
   useEffect(() => {
@@ -74,6 +103,11 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
       const contactUser = contact.username || contact.id;
       const msgs = await api.getMessages(currentUser.username, contactUser);
       setMessages(msgs);
+
+      // If accepted, mark messages as read
+      if (contactStatus === 'accepted') {
+        api.markMessagesRead(currentUser.username, contactUser).catch(() => {});
+      }
     } catch (err) {
       console.error('Failed to load conversation:', err);
     } finally {
@@ -87,7 +121,33 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
     // Polling interval to simulate real-time message updates
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
-  }, [contact]);
+  }, [contact, contactStatus]);
+
+  const handleAcceptContact = async () => {
+    if (!currentUser) return;
+    const contactUser = contact.username || contact.id;
+    try {
+      await api.acceptContact(currentUser.username, contactUser);
+      setContactStatus('accepted');
+      await api.markMessagesRead(currentUser.username, contactUser);
+      fetchMessages();
+      Alert.alert('Request Accepted', `${contact.name} has been added to your contacts.`);
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    }
+  };
+
+  const handleDeclineContact = async () => {
+    if (!currentUser) return;
+    const contactUser = contact.username || contact.id;
+    try {
+      await api.declineContact(currentUser.username, contactUser);
+      setContactStatus('declined');
+      onBack();
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    }
+  };
 
   // Send Text Message
   const handleSendText = async () => {
@@ -250,6 +310,39 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* 1. Incoming Message Request Banner (Recipient View) */}
+      {!contact.isGroup && contactStatus === 'pending' && initiatedBy?.toLowerCase() !== currentUser?.username?.toLowerCase() && (
+        <View style={styles.requestBanner}>
+          <View style={styles.requestBannerContent}>
+            <Ionicons name="mail-unread-outline" size={24} color={theme.colors.primary} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.requestBannerTitle}>Message Request</Text>
+              <Text style={styles.requestBannerSub}>
+                {contactDisplayName} is not in your contacts. Read receipts will not be shared until you accept.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.requestBannerButtons}>
+            <TouchableOpacity style={styles.bannerAcceptBtn} onPress={handleAcceptContact}>
+              <Text style={styles.bannerAcceptText}>Accept Contact</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bannerDeclineBtn} onPress={handleDeclineContact}>
+              <Text style={styles.bannerDeclineText}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* 2. Outgoing Message Request Banner (Sender View) */}
+      {!contact.isGroup && contactStatus === 'pending' && initiatedBy?.toLowerCase() === currentUser?.username?.toLowerCase() && (
+        <View style={styles.senderPendingBanner}>
+          <Ionicons name="time-outline" size={18} color="#F59E0B" />
+          <Text style={styles.senderPendingText}>
+            Message request sent. Read receipts will appear once {contactDisplayName} accepts.
+          </Text>
+        </View>
+      )}
 
       {/* Uploading Banner */}
       {uploading && (
@@ -480,5 +573,71 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.4,
+  },
+  requestBanner: {
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    padding: 12,
+  },
+  requestBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  requestBannerSub: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  requestBannerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 10,
+  },
+  bannerAcceptBtn: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  bannerAcceptText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  bannerDeclineBtn: {
+    backgroundColor: theme.colors.surfaceLight,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  bannerDeclineText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  senderPendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  senderPendingText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#D97706',
+    lineHeight: 16,
   },
 });

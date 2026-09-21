@@ -25,6 +25,10 @@ export interface Message {
   media_mime?: string | null;
   encryption_key?: string | null;
   encryption_iv?: string | null;
+  is_delivered?: boolean;
+  delivered_at?: string | null;
+  is_read?: boolean;
+  read_at?: string | null;
   created_at?: string;
 }
 
@@ -44,6 +48,43 @@ export interface ChatContact {
   isDelivered?: boolean;
   isRead?: boolean;
   isTyping?: boolean;
+  contactStatus?: 'pending' | 'accepted' | 'declined' | 'none';
+  initiatedBy?: string;
+  phoneNumber?: string | null;
+  email?: string | null;
+}
+
+export interface ContactItem {
+  id: number;
+  user_id: string;
+  contact_username: string;
+  status: 'pending' | 'accepted' | 'declined' | 'blocked';
+  initiated_by: string;
+  created_at: string;
+  updated_at: string;
+  display_name?: string;
+  avatar?: string;
+  phone_number?: string | null;
+  email?: string | null;
+  is_online?: boolean;
+  last_seen?: string | null;
+  hide_presence?: boolean;
+}
+
+export interface PendingRequestItem {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar?: string;
+  initiated_by: string;
+  created_at: string;
+  last_message?: string;
+  last_message_time?: string;
+}
+
+export interface SearchedUser extends User {
+  contact_status?: 'pending' | 'accepted' | 'declined' | null;
+  is_mutual?: boolean;
 }
 
 export interface StoryItem {

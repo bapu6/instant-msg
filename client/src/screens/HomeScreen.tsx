@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   StatusBar,
-  Platform,
   Alert,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,74 +19,11 @@ import QuickActions from '../components/QuickActions';
 import RecentChats from '../components/RecentChats';
 import BottomNavBar from '../components/BottomNavBar';
 import NewGroupModal from '../components/NewGroupModal';
+import NewChatModal from '../components/NewChatModal';
 import UserProfileModal from '../components/UserProfileModal';
 import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
-import { ChatContact, FilterType, StoryItem, ChatGroup } from '../types';
-
-const INITIAL_CHATS: ChatContact[] = [
-  {
-    id: '1',
-    name: 'Tech Lead - Alex',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    lastMessage: 'The new release build is ready for review! 🚀',
-    time: '10:42 AM',
-    unreadCount: 2,
-    isOnline: true,
-    isGroup: false,
-    isDelivered: true,
-    isRead: false,
-  },
-  {
-    id: '2',
-    name: 'Frontend Core Team',
-    avatar: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80',
-    lastMessage: 'Meeting rescheduled to 3 PM today',
-    time: '09:15 AM',
-    unreadCount: 0,
-    isOnline: true,
-    isGroup: true,
-    isDelivered: true,
-    isRead: true,
-  },
-  {
-    id: '3',
-    name: 'Elena Rostova',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    lastMessage: 'typing...',
-    time: 'Yesterday',
-    unreadCount: 1,
-    isOnline: true,
-    isTyping: true,
-    isGroup: false,
-    isDelivered: true,
-    isRead: false,
-  },
-  {
-    id: '4',
-    name: 'David Kim',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    lastMessage: 'Can you send over the Figma links?',
-    time: 'Yesterday',
-    unreadCount: 0,
-    isOnline: false,
-    isGroup: false,
-    isDelivered: true,
-    isRead: true,
-  },
-  {
-    id: '5',
-    name: 'Product Design Squad',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-    lastMessage: 'David: Shared the interactive prototype',
-    time: 'Sep 18',
-    unreadCount: 0,
-    isOnline: false,
-    isGroup: true,
-    isDelivered: true,
-    isRead: false,
-  },
-];
+import { ChatContact, FilterType, StoryItem, ChatGroup, PendingRequestItem } from '../types';
 
 interface HomeScreenProps {
   onSelectChat?: (chat: ChatContact) => void;
@@ -99,9 +37,12 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
   const [activeTab, setActiveTab] = useState<string>('chats');
   const [dbChats, setDbChats] = useState<ChatContact[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequestItem[]>([]);
   const [rawGroups, setRawGroups] = useState<ChatGroup[]>([]);
   const [isNewGroupModalVisible, setIsNewGroupModalVisible] = useState(false);
+  const [isNewChatModalVisible, setIsNewChatModalVisible] = useState(false);
   const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
+  const [showRequestsList, setShowRequestsList] = useState(false);
 
   // Load registered contacts, groups, and conversations from PostgreSQL
   useEffect(() => {
@@ -109,43 +50,70 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
     async function loadData() {
       if (!currentUser) return;
       try {
-        const [users, conversations, groups] = await Promise.all([
-          api.getUsers(currentUser.username).catch(() => []),
+        const [conversations, contacts, groups, requests] = await Promise.all([
           api.getConversations(currentUser.username).catch(() => []),
+          api.getContacts(currentUser.username).catch(() => []),
           api.getGroups(currentUser.username).catch(() => []),
+          api.getPendingRequests(currentUser.username).catch(() => []),
         ]);
 
         if (!isMounted) return;
 
         setRawGroups(groups);
+        setPendingRequests(requests);
 
-        // Format direct message contacts
-        const formattedDirect: ChatContact[] = users.map((u) => {
-          const conv = conversations.find(
-            (c) => c.counterpart_username?.toLowerCase() === u.username?.toLowerCase()
-          );
+        // 1. Map existing conversations
+        const directChats: ChatContact[] = conversations.map((conv) => {
+          const isMeSender = conv.sender?.toLowerCase() === currentUser.username.toLowerCase();
+          const contactStatus = conv.contact_status || 'none';
+
           return {
-            id: u.username,
-            username: u.username,
-            name: u.display_name || u.username,
-            avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-            lastMessage: conv
-              ? (conv.message_type === 'text' ? conv.body : `[${(conv.message_type || 'file').toUpperCase()}] ${conv.media_name || ''}`)
-              : 'Tap to start a conversation',
-            time: conv?.created_at
+            id: conv.counterpart_username,
+            username: conv.counterpart_username,
+            name: conv.counterpart_name || conv.counterpart_username,
+            avatar: conv.counterpart_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            lastMessage: conv.message_type === 'text' 
+              ? conv.body 
+              : `[${(conv.message_type || 'file').toUpperCase()}] ${conv.media_name || ''}`,
+            time: conv.created_at
               ? new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : 'Active',
             unreadCount: 0,
-            isOnline: Boolean(u.is_online && !u.hide_presence),
-            lastSeen: u.last_seen,
-            hidePresence: Boolean(u.hide_presence),
+            isOnline: false,
             isGroup: false,
-            isDelivered: true,
-            isRead: true,
+            contactStatus: contactStatus as any,
+            initiatedBy: conv.initiated_by || undefined,
+            isDelivered: Boolean(conv.is_delivered),
+            isRead: Boolean(conv.is_read),
           };
         });
 
-        // Format group chat contacts
+        // 2. Add confirmed contacts who don't have conversations yet
+        for (const contact of contacts) {
+          const alreadyInChats = directChats.some(
+            (c) => c.username?.toLowerCase() === contact.contact_username?.toLowerCase()
+          );
+          if (!alreadyInChats) {
+            directChats.push({
+              id: contact.contact_username,
+              username: contact.contact_username,
+              name: contact.display_name || contact.contact_username,
+              avatar: contact.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+              lastMessage: 'Tap to start a conversation',
+              time: 'Contact',
+              unreadCount: 0,
+              isOnline: Boolean(contact.is_online && !contact.hide_presence),
+              lastSeen: contact.last_seen,
+              hidePresence: Boolean(contact.hide_presence),
+              isGroup: false,
+              contactStatus: 'accepted',
+              isDelivered: false,
+              isRead: false,
+            });
+          }
+        }
+
+        // 3. Format group chat contacts
         const formattedGroups: ChatContact[] = groups.map((g) => ({
           id: `group_${g.id}`,
           username: `group_${g.id}`,
@@ -162,25 +130,21 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
           isRead: true,
         }));
 
-        const combined = [...formattedGroups, ...formattedDirect];
-        setDbChats(combined.length > 0 ? combined : INITIAL_CHATS);
+        setDbChats([...formattedGroups, ...directChats]);
       } catch (err: any) {
-        console.log('Using default mock chats:', err.message);
-        if (isMounted) setDbChats(INITIAL_CHATS);
+        console.log('Error loading home data:', err.message);
       }
     }
 
     loadData();
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(loadData, 4000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
   }, [currentUser]);
 
-  const chatsToDisplay = dbChats.length > 0 ? dbChats : INITIAL_CHATS;
-
-  const filteredChats = chatsToDisplay.filter((chat) => {
+  const filteredChats = dbChats.filter((chat) => {
     const matchesSearch =
       chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       chat.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
@@ -213,24 +177,51 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
     if (actionId === 'new_group') {
       setIsNewGroupModalVisible(true);
     } else if (actionId === 'calls') {
-      // Pick first non-group user to initiate call
       const contactToCall = dbChats.find((c) => !c.isGroup && c.username !== currentUser?.username);
       if (contactToCall && onStartCall) {
         onStartCall(contactToCall.username || contactToCall.id, true, contactToCall.name, contactToCall.avatar);
       } else {
-        Alert.alert('Start Call', 'Select a contact from the list to start a call.');
+        Alert.alert('Start Call', 'Select a contact from the list or tap + to start a call.');
       }
     } else {
-      Alert.alert('Action Triggered', `You clicked action: ${actionId}`);
+      setIsNewChatModalVisible(true);
     }
   };
 
-  const handleStoryPress = (story: StoryItem) => {
-    Alert.alert('Story Viewer', `Viewing story of ${story.name}`);
+  const handleAcceptRequest = async (req: PendingRequestItem) => {
+    if (!currentUser) return;
+    try {
+      await api.acceptContact(currentUser.username, req.username);
+      setPendingRequests((prev) => prev.filter((r) => r.id !== req.id));
+      Alert.alert('Accepted', `You and ${req.display_name} are now mutual contacts!`);
+      // Open the chat
+      if (onSelectChat) {
+        onSelectChat({
+          id: req.username,
+          username: req.username,
+          name: req.display_name,
+          avatar: req.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+          lastMessage: req.last_message || 'Message request accepted',
+          time: 'Just now',
+          unreadCount: 0,
+          isOnline: false,
+          isGroup: false,
+          contactStatus: 'accepted',
+        });
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    }
   };
 
-  const handleAddStory = () => {
-    Alert.alert('Create Story', 'Add a new photo or video update to your status.');
+  const handleDeclineRequest = async (req: PendingRequestItem) => {
+    if (!currentUser) return;
+    try {
+      await api.declineContact(currentUser.username, req.username);
+      setPendingRequests((prev) => prev.filter((r) => r.id !== req.id));
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    }
   };
 
   return (
@@ -238,7 +229,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
       <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
 
       <Header
-        onNotificationPress={() => Alert.alert('Notifications', 'PostgreSQL and XMPP connected.')}
+        onNotificationPress={() => Alert.alert('Status', 'Connected to secure messaging')}
         onProfilePress={() => setIsProfileModalVisible(true)}
       />
 
@@ -255,11 +246,82 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
         />
 
         <StoriesBar
-          onStoryPress={handleStoryPress}
-          onAddStory={handleAddStory}
+          onStoryPress={(s) => Alert.alert('Story', `Viewing status of ${s.name}`)}
+          onAddStory={() => Alert.alert('Create Story', 'Status updates coming soon.')}
         />
 
         <QuickActions onActionPress={handleActionPress} />
+
+        {/* Incoming Message Requests Banner */}
+        {pendingRequests.length > 0 && (
+          <View style={styles.requestsContainer}>
+            <TouchableOpacity
+              style={styles.requestsHeader}
+              activeOpacity={0.8}
+              onPress={() => setShowRequestsList((prev) => !prev)}
+            >
+              <View style={styles.requestsHeaderLeft}>
+                <View style={styles.requestBadge}>
+                  <Ionicons name="mail-unread" size={16} color="#FFF" />
+                </View>
+                <View>
+                  <Text style={styles.requestsTitle}>
+                    Message Requests ({pendingRequests.length})
+                  </Text>
+                  <Text style={styles.requestsSub}>
+                    {pendingRequests.length === 1
+                      ? `${pendingRequests[0].display_name} sent you a message`
+                      : `${pendingRequests[0].display_name} and ${pendingRequests.length - 1} other`}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons
+                name={showRequestsList ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={theme.colors.textMuted}
+              />
+            </TouchableOpacity>
+
+            {/* Expanded List of Requests */}
+            {showRequestsList && (
+              <View style={styles.requestsList}>
+                {pendingRequests.map((req) => (
+                  <View key={req.id} style={styles.requestItem}>
+                    <Image
+                      source={{
+                        uri: req.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+                      }}
+                      style={styles.requestAvatar}
+                    />
+                    <View style={styles.requestDetails}>
+                      <Text style={styles.requestName}>{req.display_name}</Text>
+                      <Text style={styles.requestHandle}>@{req.username}</Text>
+                      {Boolean(req.last_message) && (
+                        <Text style={styles.requestMessage} numberOfLines={1}>
+                          "{req.last_message}"
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.requestActions}>
+                      <TouchableOpacity
+                        style={styles.acceptBtn}
+                        onPress={() => handleAcceptRequest(req)}
+                      >
+                        <Text style={styles.acceptBtnText}>Accept</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.declineBtn}
+                        onPress={() => handleDeclineRequest(req)}
+                      >
+                        <Ionicons name="close" size={16} color={theme.colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         <RecentChats
           chats={filteredChats}
@@ -271,7 +333,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
       <TouchableOpacity
         style={styles.fab}
         activeOpacity={0.85}
-        onPress={() => Alert.alert('Compose', 'Starting a new conversation...')}
+        onPress={() => setIsNewChatModalVisible(true)}
       >
         <Ionicons name="chatbubble-ellipses" size={24} color="#FFFFFF" />
       </TouchableOpacity>
@@ -285,6 +347,16 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
         onGroupCreated={(newGroup) => {
           if (onSelectGroup) {
             onSelectGroup(newGroup);
+          }
+        }}
+      />
+
+      <NewChatModal
+        visible={isNewChatModalVisible}
+        onClose={() => setIsNewChatModalVisible(false)}
+        onSelectUser={(contact) => {
+          if (onSelectChat) {
+            onSelectChat(contact);
           }
         }}
       />
@@ -306,7 +378,105 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 90, // Leave room for bottom navigation bar and FAB
+    paddingBottom: 90,
+  },
+  requestsContainer: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    overflow: 'hidden',
+  },
+  requestsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  requestsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  requestBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  requestsSub: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    marginTop: 1,
+  },
+  requestsList: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingVertical: 4,
+  },
+  requestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  requestAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surfaceLight,
+  },
+  requestDetails: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 8,
+  },
+  requestName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  requestHandle: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  requestMessage: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  acceptBtn: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  acceptBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  declineBtn: {
+    backgroundColor: theme.colors.surfaceLight,
+    padding: 6,
+    borderRadius: 8,
   },
   fab: {
     position: 'absolute',

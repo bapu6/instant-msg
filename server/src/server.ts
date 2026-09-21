@@ -10,6 +10,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 import authService from './services/authService';
 import messageService from './services/messageService';
+import contactService from './services/contactService';
 import storageService from './services/storageService';
 import groupService from './services/groupService';
 import signalingService from './services/signalingService';
@@ -446,6 +447,119 @@ app.get('/api/conversations', async (req: Request, res: Response): Promise<any> 
     res.json({ success: true, conversations });
   } catch (err: any) {
     console.error('Get conversations error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.1 Read Receipt: Mark conversation messages as read
+app.post('/api/messages/mark-read', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { reader, sender } = req.body;
+    if (!reader || !sender) {
+      return res.status(400).json({ success: false, error: 'reader and sender are required' });
+    }
+
+    const result = await messageService.markMessagesRead(reader, sender);
+    res.json(result);
+  } catch (err: any) {
+    console.error('Mark read error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.2 Contacts: Get confirmed contacts list for user
+app.get('/api/contacts', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username } = req.query;
+    if (typeof username !== 'string') {
+      return res.status(400).json({ success: false, error: 'username query parameter is required' });
+    }
+
+    const contacts = await contactService.getContacts(username);
+    res.json({ success: true, contacts });
+  } catch (err: any) {
+    console.error('Get contacts error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.3 Contacts: Get incoming message / contact requests
+app.get('/api/contacts/requests', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username } = req.query;
+    if (typeof username !== 'string') {
+      return res.status(400).json({ success: false, error: 'username query parameter is required' });
+    }
+
+    const requests = await contactService.getPendingRequests(username);
+    res.json({ success: true, requests });
+  } catch (err: any) {
+    console.error('Get contact requests error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.4 Contacts: Accept message request
+app.post('/api/contacts/accept', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username, contactUsername } = req.body;
+    if (!username || !contactUsername) {
+      return res.status(400).json({ success: false, error: 'username and contactUsername are required' });
+    }
+
+    await contactService.acceptContactRequest(username, contactUsername);
+    res.json({ success: true, message: 'Contact request accepted' });
+  } catch (err: any) {
+    console.error('Accept contact request error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.5 Contacts: Decline message request
+app.post('/api/contacts/decline', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username, contactUsername } = req.body;
+    if (!username || !contactUsername) {
+      return res.status(400).json({ success: false, error: 'username and contactUsername are required' });
+    }
+
+    await contactService.declineContactRequest(username, contactUsername);
+    res.json({ success: true, message: 'Contact request declined' });
+  } catch (err: any) {
+    console.error('Decline contact request error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.6 Contacts: Check relationship status between two users
+app.get('/api/contacts/status', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { user1, user2 } = req.query;
+    if (typeof user1 !== 'string' || typeof user2 !== 'string') {
+      return res.status(400).json({ success: false, error: 'user1 and user2 query parameters are required' });
+    }
+
+    const status = await contactService.getContactStatus(user1, user2);
+    res.json({ success: true, ...status });
+  } catch (err: any) {
+    console.error('Get contact status error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.7 Contacts: Search users by phone, email, or username to initiate new chats
+app.get('/api/contacts/search', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { q, username } = req.query;
+    if (typeof q !== 'string' || !q.trim()) {
+      return res.json({ success: true, users: [] });
+    }
+
+    const currentUsername = typeof username === 'string' ? username : '';
+    const users = await contactService.searchUsers(q, currentUsername);
+    res.json({ success: true, users });
+  } catch (err: any) {
+    console.error('Search contacts error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

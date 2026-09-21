@@ -8,6 +8,9 @@ import {
   ChatGroup,
   GroupMember,
   GroupMessage,
+  ContactItem,
+  PendingRequestItem,
+  SearchedUser,
 } from '../types';
 
 export const getHostIp = (): string => {
@@ -67,10 +70,14 @@ export interface ConversationSummaryItem {
   media_url?: string | null;
   media_name?: string | null;
   media_size?: number | null;
+  is_delivered?: boolean;
+  is_read?: boolean;
   created_at: string;
   counterpart_name?: string;
   counterpart_avatar?: string;
   counterpart_username: string;
+  contact_status?: 'pending' | 'accepted' | 'declined' | 'none' | null;
+  initiated_by?: string | null;
 }
 
 async function safeJson(res: Response): Promise<any> {
@@ -254,6 +261,85 @@ export const api = {
       throw new Error(data.error || 'Failed to fetch conversations');
     }
     return data.conversations;
+  },
+
+  // Read Receipts
+  async markMessagesRead(reader: string, sender: string): Promise<{ success: boolean; updated: boolean; reason?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/messages/mark-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reader, sender }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      console.warn('markMessagesRead failed:', err.message);
+      return { success: false, updated: false, reason: err.message };
+    }
+  },
+
+  // Contacts & Message Requests
+  async getContacts(username: string): Promise<ContactItem[]> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts?username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to fetch contacts');
+    }
+    return data.contacts || [];
+  },
+
+  async getPendingRequests(username: string): Promise<PendingRequestItem[]> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/requests?username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to fetch message requests');
+    }
+    return data.requests || [];
+  },
+
+  async acceptContact(username: string, contactUsername: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, contactUsername }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to accept contact request');
+    }
+    return data;
+  },
+
+  async declineContact(username: string, contactUsername: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/decline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, contactUsername }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to decline contact request');
+    }
+    return data;
+  },
+
+  async getContactStatus(user1: string, user2: string): Promise<{ status: 'none' | 'pending' | 'accepted' | 'declined' | 'blocked'; initiated_by?: string }> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/status?user1=${encodeURIComponent(user1)}&user2=${encodeURIComponent(user2)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return { status: 'none' };
+    }
+    return data;
+  },
+
+  async searchUsers(q: string, username: string): Promise<SearchedUser[]> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/search?q=${encodeURIComponent(q)}&username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to search contacts');
+    }
+    return data.users || [];
   },
 
   // File & Video Upload (Multipart)

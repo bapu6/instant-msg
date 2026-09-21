@@ -37,6 +37,12 @@ class SignalingService {
                 // Update last_seen in DB
                 query('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE username = $1', [username]).catch(() => {});
 
+                // Mark pending undelivered messages as delivered
+                try {
+                  const messageService = require('./messageService').default;
+                  messageService.markMessagesDelivered(username).catch(() => {});
+                } catch {}
+
                 // Check privacy status (hide_presence)
                 try {
                   const uRes = await query('SELECT hide_presence FROM users WHERE username = $1', [username]);
@@ -133,6 +139,18 @@ class SignalingService {
                     message,
                   });
                 }
+              }
+              break;
+            }
+
+            // 8. Read Receipt
+            case 'mark-read': {
+              const { reader, sender } = payload;
+              if (reader && sender) {
+                try {
+                  const messageService = require('./messageService').default;
+                  messageService.markMessagesRead(reader, sender).catch(() => {});
+                } catch {}
               }
               break;
             }

@@ -54,11 +54,34 @@ export async function initDb(): Promise<void> {
         media_mime VARCHAR(100),
         encryption_key TEXT,
         encryption_iv TEXT,
+        is_delivered BOOLEAN DEFAULT FALSE,
+        delivered_at TIMESTAMP WITH TIME ZONE,
+        is_read BOOLEAN DEFAULT FALSE,
+        read_at TIMESTAMP WITH TIME ZONE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
       ALTER TABLE messages ADD COLUMN IF NOT EXISTS encryption_key TEXT;
       ALTER TABLE messages ADD COLUMN IF NOT EXISTS encryption_iv TEXT;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_delivered BOOLEAN DEFAULT FALSE;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;
+      CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages (recipient, sender, is_read);
+
+      CREATE TABLE IF NOT EXISTS contacts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        contact_username VARCHAR(100) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        initiated_by VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, contact_username)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts (user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_contacts_contact ON contacts (contact_username, status);
 
       CREATE TABLE IF NOT EXISTS chat_groups (
         id SERIAL PRIMARY KEY,

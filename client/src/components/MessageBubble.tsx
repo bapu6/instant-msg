@@ -444,9 +444,9 @@ export default function MessageBubble({ message, isMe }: MessageBubbleProps) {
           </Text>
           {Boolean(isMe) && (
             <Ionicons
-              name="checkmark-done"
-              size={14}
-              color={theme.colors.surface}
+              name={message.is_read || message.is_delivered ? 'checkmark-done' : 'checkmark'}
+              size={15}
+              color={message.is_read ? '#38BDF8' : 'rgba(255, 255, 255, 0.7)'}
               style={{ marginLeft: 4 }}
             />
           )}

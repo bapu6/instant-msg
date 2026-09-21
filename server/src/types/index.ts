@@ -47,6 +47,10 @@ export interface Message {
   media_mime?: string | null;
   encryption_key?: string | null;
   encryption_iv?: string | null;
+  is_delivered?: boolean;
+  delivered_at?: string | null;
+  is_read?: boolean;
+  read_at?: string | null;
   created_at: string;
 }
 
@@ -61,6 +65,10 @@ export interface SaveMessageInput {
   media_mime?: string | null;
   encryption_key?: string | null;
   encryption_iv?: string | null;
+  is_delivered?: boolean;
+  delivered_at?: string | null;
+  is_read?: boolean;
+  read_at?: string | null;
 }
 
 export interface RecentConversationSummary {
@@ -74,10 +82,44 @@ export interface RecentConversationSummary {
   media_size?: number | null;
   encryption_key?: string | null;
   encryption_iv?: string | null;
+  is_delivered?: boolean;
+  is_read?: boolean;
   created_at: string;
   counterpart_name?: string;
   counterpart_avatar?: string;
   counterpart_username: string;
+  contact_status?: ContactStatus | null;
+  initiated_by?: string | null;
+}
+
+export type ContactStatus = 'pending' | 'accepted' | 'declined' | 'blocked';
+
+export interface Contact {
+  id: number;
+  user_id: string;
+  contact_username: string;
+  status: ContactStatus;
+  initiated_by: string;
+  created_at: string;
+  updated_at: string;
+  display_name?: string;
+  avatar?: string;
+  phone_number?: string | null;
+  email?: string | null;
+  is_online?: boolean;
+  last_seen?: string | null;
+  hide_presence?: boolean;
+}
+
+export interface PendingRequest {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar?: string;
+  initiated_by: string;
+  created_at: string;
+  last_message?: string;
+  last_message_time?: string;
 }
 
 export interface UploadedFileResponse {

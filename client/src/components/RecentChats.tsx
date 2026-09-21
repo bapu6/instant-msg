@@ -68,17 +68,39 @@ export default function RecentChats({ chats, onChatPress }: RecentChatsProps) {
                   <View style={styles.unreadBadge}>
                     <Text style={styles.unreadBadgeText}>{chat.unreadCount}</Text>
                   </View>
+                ) : chat.isRead ? (
+                  <Ionicons
+                    name="checkmark-done"
+                    size={16}
+                    color="#38BDF8"
+                  />
                 ) : chat.isDelivered ? (
                   <Ionicons
                     name="checkmark-done"
                     size={16}
-                    color={chat.isRead ? theme.colors.primary : theme.colors.textMuted}
+                    color={theme.colors.textMuted}
+                  />
+                ) : chat.lastMessage && !chat.isGroup ? (
+                  <Ionicons
+                    name="checkmark"
+                    size={16}
+                    color={theme.colors.textMuted}
                   />
                 ) : null}
               </View>
             </View>
           </TouchableOpacity>
         ))}
+
+        {chats.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.surfaceLight} />
+            <Text style={styles.emptyTitle}>No messages yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Tap the compose button below or search to start a private conversation or message request.
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -219,5 +241,29 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginTop: 12,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
   },
 });

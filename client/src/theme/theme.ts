@@ -26,6 +26,7 @@ export const theme = {
     textTertiary: '#94A3B8',
     textMuted: '#94A3B8', // Slate 400
     divider: '#F1F5F9',
+    surfaceLight: '#F1F5F9',
 
     // Gradients / Badges / Status
     badgeOnline: '#22C55E',
