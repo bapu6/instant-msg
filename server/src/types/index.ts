@@ -90,6 +90,7 @@ export interface RecentConversationSummary {
   counterpart_username: string;
   contact_status?: ContactStatus | null;
   initiated_by?: string | null;
+  unread_count?: number;
 }
 
 export type ContactStatus = 'pending' | 'accepted' | 'declined' | 'blocked';

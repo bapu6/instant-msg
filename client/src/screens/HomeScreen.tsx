@@ -64,8 +64,8 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
 
         // 1. Map existing conversations
         const directChats: ChatContact[] = conversations.map((conv) => {
-          const isMeSender = conv.sender?.toLowerCase() === currentUser.username.toLowerCase();
           const contactStatus = conv.contact_status || 'none';
+          const unread = conv.unread_count || 0;
 
           return {
             id: conv.counterpart_username,
@@ -78,7 +78,8 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
             time: conv.created_at
               ? new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : 'Active',
-            unreadCount: 0,
+            timestamp: conv.created_at ? new Date(conv.created_at).getTime() : 0,
+            unreadCount: unread,
             isOnline: false,
             isGroup: false,
             contactStatus: contactStatus as any,
@@ -101,6 +102,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
               avatar: contact.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
               lastMessage: 'Tap to start a conversation',
               time: 'Contact',
+              timestamp: 0,
               unreadCount: 0,
               isOnline: Boolean(contact.is_online && !contact.hide_presence),
               lastSeen: contact.last_seen,
@@ -123,6 +125,7 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
           time: g.last_message_time
             ? new Date(g.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : 'Group',
+          timestamp: g.last_message_time ? new Date(g.last_message_time).getTime() : 0,
           unreadCount: 0,
           isOnline: true,
           isGroup: true,
@@ -130,7 +133,18 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
           isRead: true,
         }));
 
-        setDbChats([...formattedGroups, ...directChats]);
+        // 4. Combine and bring unread messages to the TOP of the contact list
+        const combined = [...formattedGroups, ...directChats];
+        combined.sort((a, b) => {
+          const aHasUnread = (a.unreadCount && a.unreadCount > 0) ? 1 : 0;
+          const bHasUnread = (b.unreadCount && b.unreadCount > 0) ? 1 : 0;
+          if (aHasUnread !== bHasUnread) {
+            return bHasUnread - aHasUnread; // unread first
+          }
+          return (b.timestamp || 0) - (a.timestamp || 0); // then latest first
+        });
+
+        setDbChats(combined);
       } catch (err: any) {
         console.log('Error loading home data:', err.message);
       }

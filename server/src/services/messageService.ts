@@ -205,12 +205,21 @@ export async function getRecentConversations(username: string): Promise<RecentCo
         LEAST(LOWER(sender), LOWER(recipient)),
         GREATEST(LOWER(sender), LOWER(recipient)),
         created_at DESC
+    ),
+    unread_counts AS (
+      SELECT 
+        LOWER(sender) AS counterpart,
+        COUNT(*)::int AS unread_count
+      FROM messages
+      WHERE LOWER(recipient) = $1 AND is_read = FALSE
+      GROUP BY LOWER(sender)
     )
     SELECT lm.*,
            u.display_name AS counterpart_name,
            u.avatar AS counterpart_avatar,
            c.status AS contact_status,
            c.initiated_by,
+           COALESCE(uc.unread_count, 0)::int AS unread_count,
            CASE 
              WHEN LOWER(lm.sender) = $1 THEN lm.recipient 
              ELSE lm.sender 
@@ -221,8 +230,12 @@ export async function getRecentConversations(username: string): Promise<RecentCo
     LEFT JOIN contacts c
       ON LOWER(c.user_id) = $1 
      AND LOWER(c.contact_username) = (CASE WHEN LOWER(lm.sender) = $1 THEN LOWER(lm.recipient) ELSE LOWER(lm.sender) END)
+    LEFT JOIN unread_counts uc
+      ON uc.counterpart = (CASE WHEN LOWER(lm.sender) = $1 THEN LOWER(lm.recipient) ELSE LOWER(lm.sender) END)
     WHERE (c.status IS NULL OR c.status != 'blocked')
-    ORDER BY lm.created_at DESC;
+    ORDER BY 
+      CASE WHEN COALESCE(uc.unread_count, 0) > 0 THEN 0 ELSE 1 END,
+      lm.created_at DESC;
   `;
 
   const result = await db.query<RecentConversationSummary>(query, [u]);

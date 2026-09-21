@@ -78,6 +78,7 @@ export interface ConversationSummaryItem {
   counterpart_username: string;
   contact_status?: 'pending' | 'accepted' | 'declined' | 'none' | null;
   initiated_by?: string | null;
+  unread_count?: number;
 }
 
 async function safeJson(res: Response): Promise<any> {

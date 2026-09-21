@@ -66,7 +66,9 @@ export default function RecentChats({ chats, onChatPress }: RecentChatsProps) {
 
                 {chat.unreadCount > 0 ? (
                   <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadBadgeText}>{chat.unreadCount}</Text>
+                    <Text style={styles.unreadBadgeText}>
+                      {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                    </Text>
                   </View>
                 ) : chat.isRead ? (
                   <Ionicons
@@ -202,8 +204,8 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   timeActive: {
-    color: theme.colors.primary,
-    fontWeight: '600',
+    color: '#25D366',
+    fontWeight: '700',
   },
   bottomRow: {
     flexDirection: 'row',
@@ -216,8 +218,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   lastMessageUnread: {
-    fontWeight: '600',
-    color: theme.colors.text,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
   },
   lastMessageRead: {
     fontWeight: '400',
@@ -229,7 +231,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   unreadBadge: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#25D366',
     minWidth: 20,
     height: 20,
     borderRadius: 10,
@@ -240,7 +242,7 @@ const styles = StyleSheet.create({
   unreadBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   emptyContainer: {
     alignItems: 'center',

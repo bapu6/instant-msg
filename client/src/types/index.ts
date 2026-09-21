@@ -52,6 +52,7 @@ export interface ChatContact {
   initiatedBy?: string;
   phoneNumber?: string | null;
   email?: string | null;
+  timestamp?: number;
 }
 
 export interface ContactItem {
