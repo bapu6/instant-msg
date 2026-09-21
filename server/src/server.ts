@@ -147,10 +147,11 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response): Promise<an
     const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
     const cleanCode = code.trim();
 
-    // Verification check: matches stored code or default test code
+    // Verification check: matches stored code or default test code (for 99999 numbers)
     const stored = otpStore.get(cleanPhone);
+    const isTestNumber = cleanPhone.includes('99999');
     const isValid =
-      cleanCode === '123456' ||
+      (isTestNumber && cleanCode === '123456') ||
       (stored && stored.code === cleanCode && stored.expiresAt > Date.now());
 
     if (!isValid) {

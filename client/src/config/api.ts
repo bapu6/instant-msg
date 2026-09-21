@@ -447,7 +447,7 @@ export const api = {
 
   // File & Video Upload (Multipart)
   async uploadFile(asset: AttachmentAsset): Promise<UploadResponse> {
-    // 1. Native Mobile (Android & iOS): Use native uploadAsync to bypass React Native 0.86 FormDataPart issues
+    // 1. Native Mobile (Android & iOS): Use native React Native FormData fetch upload
     if (Platform.OS !== 'web') {
       let fileUri = asset.uri;
       if (asset.bytes) {
@@ -468,19 +468,23 @@ export const api = {
         }
       }
 
-      const FileSystemLegacy = require('expo-file-system/legacy');
-      const uploadResult = await FileSystemLegacy.uploadAsync(
-        `${API_BASE_URL}/api/upload`,
-        fileUri,
-        {
-          fieldName: 'file',
-          httpMethod: 'POST',
-          uploadType: FileSystemLegacy.FileSystemUploadType.MULTIPART,
-        }
-      );
+      const formData = new FormData();
+      formData.append('file', {
+        uri: fileUri,
+        name: asset.name || 'upload.bin',
+        type: asset.mimeType || 'application/octet-stream',
+      } as any);
 
-      const data = JSON.parse(uploadResult.body);
-      if (!data.success) {
+      const res = await fetch(`${API_BASE_URL}/api/upload`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
         throw new Error(data.error || 'File upload failed');
       }
       return data.file;
