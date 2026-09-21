@@ -122,8 +122,8 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response): Promise<any>
     }
 
     const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
-    // Generate 6-digit OTP (or fixed 123456 for test numbers)
-    const code = cleanPhone.includes('99999') ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate secure random 6-digit OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(cleanPhone, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
 
     res.json({
@@ -147,12 +147,9 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response): Promise<an
     const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
     const cleanCode = code.trim();
 
-    // Verification check: matches stored code or default test code (for 99999 numbers)
+    // Verification check: strictly requires valid, unexpired code from stored session
     const stored = otpStore.get(cleanPhone);
-    const isTestNumber = cleanPhone.includes('99999');
-    const isValid =
-      (isTestNumber && cleanCode === '123456') ||
-      (stored && stored.code === cleanCode && stored.expiresAt > Date.now());
+    const isValid = Boolean(stored && stored.code === cleanCode && stored.expiresAt > Date.now());
 
     if (!isValid) {
       return res.status(400).json({ success: false, error: 'Invalid or expired OTP code' });
