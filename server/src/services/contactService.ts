@@ -202,10 +202,11 @@ export async function acceptContactRequest(userId: string, contactUsername: stri
   return true;
 }
 
-export async function declineContactRequest(userId: string, contactUsername: string): Promise<boolean> {
+export async function deleteContactRequest(userId: string, contactUsername: string): Promise<boolean> {
   const u = userId.toLowerCase();
   const c = contactUsername.toLowerCase();
 
+  // Mark status as declined so it no longer appears in pending requests
   await db.query(
     `UPDATE contacts 
      SET status = 'declined', updated_at = CURRENT_TIMESTAMP 
@@ -214,7 +215,93 @@ export async function declineContactRequest(userId: string, contactUsername: str
     [u, c]
   );
 
+  // Remove messages received from that contact to clear from inbox
+  await db.query(
+    `DELETE FROM messages 
+     WHERE LOWER(recipient) = $1 AND LOWER(sender) = $2`,
+    [u, c]
+  );
+
   return true;
+}
+
+export async function blockUser(userId: string, targetUsername: string): Promise<boolean> {
+  const u = userId.toLowerCase();
+  const t = targetUsername.toLowerCase();
+
+  // Upsert blocked status for user -> target
+  await db.query(
+    `INSERT INTO contacts (user_id, contact_username, status, initiated_by, updated_at)
+     VALUES ($1, $2, 'blocked', $1, CURRENT_TIMESTAMP)
+     ON CONFLICT (user_id, contact_username)
+     DO UPDATE SET status = 'blocked', initiated_by = $1, updated_at = CURRENT_TIMESTAMP`,
+    [u, t]
+  );
+
+  // Clear pending/accepted status for reciprocal entry
+  await db.query(
+    `UPDATE contacts
+     SET status = 'declined', updated_at = CURRENT_TIMESTAMP
+     WHERE LOWER(user_id) = $1 AND LOWER(contact_username) = $2 AND status != 'blocked'`,
+    [t, u]
+  );
+
+  // End any active calls via signaling
+  signalingService.sendToUser(t, {
+    type: 'call-ended',
+    from: u,
+    reason: 'blocked',
+  });
+
+  return true;
+}
+
+export async function unblockUser(userId: string, targetUsername: string): Promise<boolean> {
+  const u = userId.toLowerCase();
+  const t = targetUsername.toLowerCase();
+
+  await db.query(
+    `DELETE FROM contacts 
+     WHERE LOWER(user_id) = $1 AND LOWER(contact_username) = $2 AND status = 'blocked'`,
+    [u, t]
+  );
+
+  return true;
+}
+
+export async function isUserBlocked(recipient: string, sender: string): Promise<boolean> {
+  if (!recipient || !sender) return false;
+  const r = recipient.toLowerCase();
+  const s = sender.toLowerCase();
+
+  const res = await db.query(
+    `SELECT 1 FROM contacts 
+     WHERE LOWER(user_id) = $1 AND LOWER(contact_username) = $2 AND status = 'blocked'
+     LIMIT 1`,
+    [r, s]
+  );
+
+  return res.rows.length > 0;
+}
+
+export async function getBlockedUsers(userId: string): Promise<SafeUser[]> {
+  if (!userId) return [];
+  const u = userId.toLowerCase();
+
+  const query = `
+    SELECT u.id, u.username, u.display_name, u.email, u.phone_number, u.avatar, u.created_at
+    FROM contacts c
+    INNER JOIN users u ON LOWER(u.username) = LOWER(c.contact_username)
+    WHERE LOWER(c.user_id) = $1 AND c.status = 'blocked'
+    ORDER BY c.updated_at DESC
+  `;
+
+  const res = await db.query(query, [u]);
+  return res.rows;
+}
+
+export async function declineContactRequest(userId: string, contactUsername: string): Promise<boolean> {
+  return deleteContactRequest(userId, contactUsername);
 }
 
 export async function searchUsers(
@@ -277,5 +364,10 @@ export default {
   ensureContactRecord,
   acceptContactRequest,
   declineContactRequest,
+  deleteContactRequest,
+  blockUser,
+  unblockUser,
+  isUserBlocked,
+  getBlockedUsers,
   searchUsers,
 };

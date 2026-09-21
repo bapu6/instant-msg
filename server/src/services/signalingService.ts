@@ -74,6 +74,16 @@ class SignalingService {
             // 2. WebRTC Call: Initiate Call
             case 'call-user': {
               const { to, from, isVideo, offer, callerName, callerAvatar } = payload;
+              if (to && from) {
+                try {
+                  const contactService = require('./contactService').default;
+                  const isBlocked = await contactService.isUserBlocked(to, from);
+                  if (isBlocked) {
+                    this.sendToUser(from, { type: 'call-rejected', reason: 'blocked', from: to });
+                    break;
+                  }
+                } catch {}
+              }
               this.sendToUser(to, {
                 type: 'incoming-call',
                 from,

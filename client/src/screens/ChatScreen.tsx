@@ -137,13 +137,64 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
     }
   };
 
-  const handleDeclineContact = async () => {
+  const handleDeleteRequest = () => {
+    Alert.alert(
+      'Delete Message Request?',
+      'This conversation will be deleted from your inbox.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!currentUser) return;
+            const contactUser = contact.username || contact.id;
+            try {
+              await api.deleteRequest(currentUser.username, contactUser);
+              setContactStatus('declined');
+              onBack();
+            } catch (err: any) {
+              Alert.alert('Error', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleBlockUser = () => {
+    Alert.alert(
+      `Block ${contactDisplayName}?`,
+      'They will not be able to message or call you, and this conversation will be removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            if (!currentUser) return;
+            const contactUser = contact.username || contact.id;
+            try {
+              await api.blockContact(currentUser.username, contactUser);
+              setContactStatus('blocked');
+              Alert.alert('User Blocked', `${contactDisplayName} has been blocked.`);
+              onBack();
+            } catch (err: any) {
+              Alert.alert('Error', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUnblockUser = async () => {
     if (!currentUser) return;
     const contactUser = contact.username || contact.id;
     try {
-      await api.declineContact(currentUser.username, contactUser);
-      setContactStatus('declined');
-      onBack();
+      await api.unblockContact(currentUser.username, contactUser);
+      setContactStatus('none');
+      Alert.alert('User Unblocked', `${contactDisplayName} has been unblocked.`);
     } catch (err: any) {
       Alert.alert('Error', err.message);
     }
@@ -324,17 +375,33 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
             </View>
           </View>
           <View style={styles.requestBannerButtons}>
-            <TouchableOpacity style={styles.bannerAcceptBtn} onPress={handleAcceptContact}>
-              <Text style={styles.bannerAcceptText}>Accept Contact</Text>
+            <TouchableOpacity style={styles.bannerBlockBtn} onPress={handleBlockUser}>
+              <Ionicons name="ban-outline" size={14} color="#EF4444" style={{ marginRight: 4 }} />
+              <Text style={styles.bannerBlockText}>Block</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bannerDeclineBtn} onPress={handleDeclineContact}>
-              <Text style={styles.bannerDeclineText}>Decline</Text>
+            <TouchableOpacity style={styles.bannerDeleteBtn} onPress={handleDeleteRequest}>
+              <Ionicons name="trash-outline" size={14} color={theme.colors.textSecondary} style={{ marginRight: 4 }} />
+              <Text style={styles.bannerDeleteText}>Delete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bannerAcceptBtn} onPress={handleAcceptContact}>
+              <Text style={styles.bannerAcceptText}>Accept</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* 2. Outgoing Message Request Banner (Sender View) */}
+      {/* 2. Blocked User Banner */}
+      {!contact.isGroup && contactStatus === 'blocked' && (
+        <View style={styles.blockedBanner}>
+          <Ionicons name="ban" size={18} color="#EF4444" />
+          <Text style={styles.blockedBannerText}>You have blocked this contact.</Text>
+          <TouchableOpacity style={styles.unblockBtn} onPress={handleUnblockUser}>
+            <Text style={styles.unblockBtnText}>Unblock</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* 3. Outgoing Message Request Banner (Sender View) */}
       {!contact.isGroup && contactStatus === 'pending' && initiatedBy?.toLowerCase() === currentUser?.username?.toLowerCase() && (
         <View style={styles.senderPendingBanner}>
           <Ionicons name="time-outline" size={18} color="#F59E0B" />
@@ -385,36 +452,43 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
       )}
 
       {/* Input Bar */}
-      <View style={styles.inputContainer}>
-        {/* Attachment Button */}
-        <TouchableOpacity
-          style={styles.attachButton}
-          onPress={handlePickDocument}
-          disabled={uploading}
-        >
-          <Ionicons name="attach" size={24} color={theme.colors.primary} />
-        </TouchableOpacity>
+      {contactStatus === 'blocked' ? (
+        <View style={styles.blockedInputContainer}>
+          <Ionicons name="lock-closed-outline" size={16} color={theme.colors.textMuted} style={{ marginRight: 8 }} />
+          <Text style={styles.blockedInputText}>You have blocked this contact. Unblock to send messages.</Text>
+        </View>
+      ) : (
+        <View style={styles.inputContainer}>
+          {/* Attachment Button */}
+          <TouchableOpacity
+            style={styles.attachButton}
+            onPress={handlePickDocument}
+            disabled={uploading}
+          >
+            <Ionicons name="attach" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
 
-        {/* Text Input */}
-        <TextInput
-          style={styles.textInput}
-          placeholder="Type a message..."
-          placeholderTextColor={theme.colors.textTertiary}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-          maxLength={1000}
-        />
+          {/* Text Input */}
+          <TextInput
+            style={styles.textInput}
+            placeholder="Type a message..."
+            placeholderTextColor={theme.colors.textTertiary}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={1000}
+          />
 
-        {/* Send Button */}
-        <TouchableOpacity
-          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-          onPress={handleSendText}
-          disabled={!inputText.trim()}
-        >
-          <Ionicons name="arrow-up" size={20} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+          {/* Send Button */}
+          <TouchableOpacity
+            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+            onPress={handleSendText}
+            disabled={!inputText.trim()}
+          >
+            <Ionicons name="arrow-up" size={20} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -604,25 +678,84 @@ const styles = StyleSheet.create({
   },
   bannerAcceptBtn: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 8,
   },
   bannerAcceptText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
-  bannerDeclineBtn: {
+  bannerDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.surfaceLight,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
   },
-  bannerDeclineText: {
+  bannerDeleteText: {
     color: theme.colors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
+  },
+  bannerBlockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  bannerBlockText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  blockedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(239, 68, 68, 0.2)',
+    justifyContent: 'space-between',
+  },
+  blockedBannerText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  unblockBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  unblockBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  blockedInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  blockedInputText: {
+    fontSize: 13,
+    color: theme.colors.textMuted,
   },
   senderPendingBanner: {
     flexDirection: 'row',

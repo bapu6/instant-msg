@@ -214,14 +214,51 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
     }
   };
 
-  const handleDeclineRequest = async (req: PendingRequestItem) => {
-    if (!currentUser) return;
-    try {
-      await api.declineContact(currentUser.username, req.username);
-      setPendingRequests((prev) => prev.filter((r) => r.id !== req.id));
-    } catch (err: any) {
-      Alert.alert('Error', err.message);
-    }
+  const handleDeleteRequest = (req: PendingRequestItem) => {
+    Alert.alert(
+      'Delete Request?',
+      `Delete message request from ${req.display_name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!currentUser) return;
+            try {
+              await api.deleteRequest(currentUser.username, req.username);
+              setPendingRequests((prev) => prev.filter((r) => r.id !== req.id));
+            } catch (err: any) {
+              Alert.alert('Error', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleBlockRequest = (req: PendingRequestItem) => {
+    Alert.alert(
+      `Block ${req.display_name}?`,
+      'They will not be able to message or call you.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            if (!currentUser) return;
+            try {
+              await api.blockContact(currentUser.username, req.username);
+              setPendingRequests((prev) => prev.filter((r) => r.id !== req.id));
+              Alert.alert('User Blocked', `${req.display_name} has been blocked.`);
+            } catch (err: any) {
+              Alert.alert('Error', err.message);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -304,16 +341,22 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
                     </View>
                     <View style={styles.requestActions}>
                       <TouchableOpacity
+                        style={styles.blockBtn}
+                        onPress={() => handleBlockRequest(req)}
+                      >
+                        <Ionicons name="ban-outline" size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => handleDeleteRequest(req)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={theme.colors.textMuted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
                         style={styles.acceptBtn}
                         onPress={() => handleAcceptRequest(req)}
                       >
                         <Text style={styles.acceptBtnText}>Accept</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.declineBtn}
-                        onPress={() => handleDeclineRequest(req)}
-                      >
-                        <Ionicons name="close" size={16} color={theme.colors.textMuted} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -473,7 +516,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  declineBtn: {
+  blockBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: 6,
+    borderRadius: 8,
+  },
+  deleteBtn: {
     backgroundColor: theme.colors.surfaceLight,
     padding: 6,
     borderRadius: 8,

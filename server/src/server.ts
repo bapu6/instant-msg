@@ -515,7 +515,7 @@ app.post('/api/contacts/accept', async (req: Request, res: Response): Promise<an
   }
 });
 
-// 8.5 Contacts: Decline message request
+// 8.5 Contacts: Decline / Delete message request
 app.post('/api/contacts/decline', async (req: Request, res: Response): Promise<any> => {
   try {
     const { username, contactUsername } = req.body;
@@ -523,10 +523,74 @@ app.post('/api/contacts/decline', async (req: Request, res: Response): Promise<a
       return res.status(400).json({ success: false, error: 'username and contactUsername are required' });
     }
 
-    await contactService.declineContactRequest(username, contactUsername);
-    res.json({ success: true, message: 'Contact request declined' });
+    await contactService.deleteContactRequest(username, contactUsername);
+    res.json({ success: true, message: 'Contact request deleted' });
   } catch (err: any) {
     console.error('Decline contact request error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.5b Contacts: Delete message request (explicit endpoint)
+app.post('/api/contacts/delete-request', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username, contactUsername } = req.body;
+    if (!username || !contactUsername) {
+      return res.status(400).json({ success: false, error: 'username and contactUsername are required' });
+    }
+
+    await contactService.deleteContactRequest(username, contactUsername);
+    res.json({ success: true, message: 'Contact request deleted' });
+  } catch (err: any) {
+    console.error('Delete contact request error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.5c Contacts: Block user
+app.post('/api/contacts/block', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username, contactUsername } = req.body;
+    if (!username || !contactUsername) {
+      return res.status(400).json({ success: false, error: 'username and contactUsername are required' });
+    }
+
+    await contactService.blockUser(username, contactUsername);
+    res.json({ success: true, message: 'User blocked successfully' });
+  } catch (err: any) {
+    console.error('Block user error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.5d Contacts: Unblock user
+app.post('/api/contacts/unblock', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username, contactUsername } = req.body;
+    if (!username || !contactUsername) {
+      return res.status(400).json({ success: false, error: 'username and contactUsername are required' });
+    }
+
+    await contactService.unblockUser(username, contactUsername);
+    res.json({ success: true, message: 'User unblocked successfully' });
+  } catch (err: any) {
+    console.error('Unblock user error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8.5e Contacts: Get list of blocked users
+app.get('/api/contacts/blocked', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username } = req.query;
+    if (typeof username !== 'string') {
+      return res.status(400).json({ success: false, error: 'username query parameter is required' });
+    }
+
+    const blocked = await contactService.getBlockedUsers(username);
+    res.json({ success: true, blocked });
+  } catch (err: any) {
+    console.error('Get blocked users error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

@@ -22,6 +22,12 @@ export async function saveMessage({
   const s = sender.toLowerCase();
   const r = recipient.toLowerCase();
 
+  // Check if recipient has blocked sender
+  const isBlocked = await contactService.isUserBlocked(r, s);
+  if (isBlocked) {
+    throw new Error('You cannot message this user');
+  }
+
   // Check if recipient is currently online to set initial delivery status
   const isRecipientOnline = signalingService.isUserOnline(r);
   const isDelivered = isRecipientOnline;
@@ -215,6 +221,7 @@ export async function getRecentConversations(username: string): Promise<RecentCo
     LEFT JOIN contacts c
       ON LOWER(c.user_id) = $1 
      AND LOWER(c.contact_username) = (CASE WHEN LOWER(lm.sender) = $1 THEN LOWER(lm.recipient) ELSE LOWER(lm.sender) END)
+    WHERE (c.status IS NULL OR c.status != 'blocked')
     ORDER BY lm.created_at DESC;
   `;
 

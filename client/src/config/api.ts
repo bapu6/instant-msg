@@ -324,6 +324,54 @@ export const api = {
     return data;
   },
 
+  async deleteRequest(username: string, contactUsername: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/delete-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, contactUsername }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to delete contact request');
+    }
+    return data;
+  },
+
+  async blockContact(username: string, contactUsername: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/block`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, contactUsername }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to block user');
+    }
+    return data;
+  },
+
+  async unblockContact(username: string, contactUsername: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/unblock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, contactUsername }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to unblock user');
+    }
+    return data;
+  },
+
+  async getBlockedUsers(username: string): Promise<User[]> {
+    const res = await fetch(`${API_BASE_URL}/api/contacts/blocked?username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to get blocked users');
+    }
+    return data.blocked || [];
+  },
+
   async getContactStatus(user1: string, user2: string): Promise<{ status: 'none' | 'pending' | 'accepted' | 'declined' | 'blocked'; initiated_by?: string }> {
     const res = await fetch(`${API_BASE_URL}/api/contacts/status?user1=${encodeURIComponent(user1)}&user2=${encodeURIComponent(user2)}`);
     const data = await res.json();
