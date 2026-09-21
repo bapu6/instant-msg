@@ -6,34 +6,47 @@ import { User } from '../types';
 let confirmationResult: any = null;
 
 /**
- * Send real SMS verification code via Firebase Phone Auth on Mobile (v26 modular API),
- * or fallback to backend API.
+ * Send real SMS verification code via Firebase Phone Auth on Android (v26 modular API).
+ * Uses SafetyNet/Play Integrity for silent verification (no browser reCAPTCHA).
+ * Falls back to backend OTP if Firebase fails.
  */
 export async function sendFirebasePhoneOtp(
   phoneNumber: string
 ): Promise<{ success: boolean; isNativeFirebase: boolean }> {
   const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
 
-  if (Platform.OS !== 'web') {
-    // @react-native-firebase/auth v26 uses a fully modular API (no default export)
-    const rnfAuth = require('@react-native-firebase/auth');
-    const { getAuth, signInWithPhoneNumber } = rnfAuth;
+  if (Platform.OS === 'android') {
+    try {
+      const rnfAuth = require('@react-native-firebase/auth');
+      const { getAuth, signInWithPhoneNumber } = rnfAuth;
 
-    console.log('🔥 [Firebase Native] Requesting SMS OTP for:', cleanPhone);
-    const auth = getAuth();
-    confirmationResult = await signInWithPhoneNumber(auth, cleanPhone);
-    console.log('✅ [Firebase Native] SMS sent via Firebase');
-    return { success: true, isNativeFirebase: true };
+      const auth = getAuth();
+
+      // Disable browser reCAPTCHA fallback — use Play Integrity / SafetyNet silently.
+      // This prevents Firebase from redirecting the user to an external browser.
+      // Requires the release SHA-256 fingerprint to be registered in Firebase Console.
+      if (auth.settings && typeof auth.settings.forceRecaptchaFlow !== 'undefined') {
+        auth.settings.forceRecaptchaFlow = false;
+      }
+
+      console.log('🔥 [Firebase Native] Requesting SMS OTP for:', cleanPhone);
+      confirmationResult = await signInWithPhoneNumber(auth, cleanPhone);
+      console.log('✅ [Firebase Native] SMS sent via Firebase');
+      return { success: true, isNativeFirebase: true };
+    } catch (err: any) {
+      console.warn('⚠️ [Firebase] signInWithPhoneNumber failed, falling back to backend OTP:', err.message);
+      confirmationResult = null;
+    }
   }
 
-  // Web / fallback
+  // Backend fallback (web or if Firebase unavailable)
   const res = await api.sendOtp(cleanPhone);
   return { ...res, isNativeFirebase: false };
 }
 
 /**
- * Verify SMS code via Firebase on Mobile (v26 modular API) or Backend,
- * then complete login/registration with the backend.
+ * Verify SMS code via Firebase on Android or Backend,
+ * then complete login/registration with the backend (including displayName).
  */
 export async function verifyFirebasePhoneOtp(
   phoneNumber: string,
@@ -43,24 +56,24 @@ export async function verifyFirebasePhoneOtp(
   const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
   const cleanCode = code.trim();
 
-  if (Platform.OS !== 'web' && confirmationResult) {
+  if (Platform.OS === 'android' && confirmationResult) {
     try {
       console.log('🔥 [Firebase Native] Confirming code with Firebase...');
       const userCredential = await confirmationResult.confirm(cleanCode);
       console.log('✅ [Firebase Native] Firebase confirmed user:', userCredential?.user?.uid);
 
-      // Firebase auth succeeded — register/login the user in our backend
+      // Firebase auth succeeded — register/login the user in our backend WITH displayName
       const user = await api.phoneLogin(cleanPhone, displayName);
       confirmationResult = null;
       return user;
     } catch (err: any) {
       console.warn('⚠️ [Firebase Native] Confirmation failed:', err.message);
-      // If Firebase verification failed, try backend verify as fallback
+      // Backend OTP verify as fallback (still passes displayName)
       return await api.verifyOtp(cleanPhone, cleanCode, displayName);
     }
   }
 
-  // Fallback
+  // Fallback: backend OTP verify (passing displayName so it gets saved)
   return await api.verifyOtp(cleanPhone, cleanCode, displayName);
 }
 

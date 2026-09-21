@@ -128,13 +128,19 @@ export async function initDb(): Promise<void> {
       INSERT INTO users (username, password, display_name, phone_number, avatar)
       VALUES 
       ('admin', '$2b$10$d8VWmTH1mS2PJSxzngQrmurxJ3i5I3xHKfTNRVxs5XJ2ZACW/wjTe', 'System Admin', '+910000000000', 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80')
-      ON CONFLICT (username) DO NOTHING;
+      ON CONFLICT (username) DO UPDATE
+        SET password = CASE
+          WHEN users.password NOT LIKE '$2a$%' AND users.password NOT LIKE '$2b$%'
+          THEN '$2b$10$d8VWmTH1mS2PJSxzngQrmurxJ3i5I3xHKfTNRVxs5XJ2ZACW/wjTe'
+          ELSE users.password
+        END;
     `);
 
     // Auto-upgrade any legacy plaintext passwords to bcrypt hashes
     try {
+      // Use substring match to safely check for non-bcrypt passwords
       const unhashed = await pool.query<{ id: number; password: string }>(
-        `SELECT id, password FROM users WHERE password IS NOT NULL AND password NOT LIKE '$2a$%' AND password NOT LIKE '$2b$%'`
+        `SELECT id, password FROM users WHERE password IS NOT NULL AND substring(password, 1, 4) != '$2a$' AND substring(password, 1, 4) != '$2b$'`
       );
       for (const row of unhashed.rows) {
         if (row.password) {

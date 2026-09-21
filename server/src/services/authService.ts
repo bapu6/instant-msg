@@ -197,7 +197,7 @@ export async function loginOrRegisterWithPhone({
   if (emailUser && !phoneUser) {
     await db.query(`UPDATE users SET phone_number = $1 WHERE id = $2`, [cleanPhone, emailUser.id]);
     emailUser.phone_number = cleanPhone;
-    if (displayName && (!emailUser.display_name || emailUser.display_name === emailUser.username)) {
+    if (displayName && displayName.trim()) {
       await db.query(`UPDATE users SET display_name = $1 WHERE id = $2`, [displayName.trim(), emailUser.id]);
       emailUser.display_name = displayName.trim();
     }
@@ -210,7 +210,8 @@ export async function loginOrRegisterWithPhone({
       await db.query(`UPDATE users SET email = $1 WHERE id = $2`, [cleanEmail, phoneUser.id]);
       phoneUser.email = cleanEmail;
     }
-    if (displayName && (!phoneUser.display_name || phoneUser.display_name === phoneUser.username)) {
+    // Always update display_name when a name is explicitly provided
+    if (displayName && displayName.trim()) {
       await db.query(`UPDATE users SET display_name = $1 WHERE id = $2`, [displayName.trim(), phoneUser.id]);
       phoneUser.display_name = displayName.trim();
     }
