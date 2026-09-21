@@ -13,9 +13,19 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
+
+const PRESET_AVATARS = [
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
+];
 
 interface UserProfileModalProps {
   visible: boolean;
@@ -28,8 +38,10 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
   const [displayName, setDisplayName] = useState(currentUser?.display_name || '');
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.phone_number || '');
   const [email, setEmail] = useState(currentUser?.email || '');
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar || PRESET_AVATARS[0]);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Sync state whenever modal opens or currentUser changes
   React.useEffect(() => {
@@ -37,10 +49,42 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
       setDisplayName(currentUser.display_name || '');
       setPhoneNumber(currentUser.phone_number || '');
       setEmail(currentUser.email || '');
+      setAvatarUrl(currentUser.avatar || PRESET_AVATARS[0]);
     }
   }, [currentUser, visible]);
 
   if (!currentUser) return null;
+
+  const handlePickAvatar = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      setUploadingAvatar(true);
+
+      const uploadResult = await api.uploadFile({
+        uri: asset.uri,
+        name: asset.name,
+        mimeType: asset.mimeType || 'image/jpeg',
+        size: asset.size,
+      });
+
+      if (uploadResult?.url) {
+        setAvatarUrl(uploadResult.url);
+      }
+    } catch (err: any) {
+      Alert.alert('Upload Error', err.message || 'Could not upload selected photo');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     if (!currentUser.id) return;
@@ -51,10 +95,11 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
         displayName: displayName.trim(),
         phoneNumber: phoneNumber.trim() || undefined,
         email: email.trim() || undefined,
+        avatar: avatarUrl,
       });
       setCurrentUser(updated);
       setIsEditing(false);
-      Alert.alert('Profile Updated', 'Your profile and linked accounts have been synchronized.');
+      Alert.alert('Profile Updated', 'Your profile details have been successfully saved.');
     } catch (err: any) {
       Alert.alert('Update Failed', err.message || 'Could not update profile');
     } finally {
@@ -98,7 +143,9 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
         <View style={styles.modalCard}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Account Profile</Text>
+            <Text style={styles.title}>
+              {isEditing ? 'Edit Profile' : 'Account Profile'}
+            </Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
             </TouchableOpacity>
@@ -109,31 +156,83 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
             <View style={styles.avatarSection}>
               <View style={styles.avatarWrapper}>
                 <Image
-                  source={{
-                    uri:
-                      currentUser.avatar ||
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-                  }}
+                  source={{ uri: isEditing ? avatarUrl : (currentUser.avatar || avatarUrl) }}
                   style={styles.avatar}
                 />
+                {isEditing && (
+                  <TouchableOpacity
+                    style={styles.changeAvatarBadge}
+                    activeOpacity={0.8}
+                    onPress={handlePickAvatar}
+                    disabled={uploadingAvatar}
+                  >
+                    {uploadingAvatar ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name="camera" size={18} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
-              <Text style={styles.nameText}>
-                {currentUser.display_name || currentUser.username}
-              </Text>
-              <Text style={styles.usernameText}>@{currentUser.username}</Text>
+
+              {isEditing ? (
+                <TouchableOpacity
+                  style={styles.changePhotoBtn}
+                  onPress={handlePickAvatar}
+                  disabled={uploadingAvatar}
+                >
+                  <Ionicons name="image-outline" size={16} color={theme.colors.primary} />
+                  <Text style={styles.changePhotoText}>Choose from Gallery</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <Text style={styles.nameText}>
+                    {currentUser.display_name || currentUser.username}
+                  </Text>
+                  <Text style={styles.usernameText}>@{currentUser.username}</Text>
+                </>
+              )}
             </View>
 
+            {/* Preset Avatars Picker when Editing */}
+            {isEditing && (
+              <View style={styles.presetSection}>
+                <Text style={styles.presetTitle}>Or Choose an Avatar:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
+                  {PRESET_AVATARS.map((preset, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.presetItem,
+                        avatarUrl === preset && styles.presetItemSelected,
+                      ]}
+                      onPress={() => setAvatarUrl(preset)}
+                    >
+                      <Image source={{ uri: preset }} style={styles.presetThumb} />
+                      {avatarUrl === preset && (
+                        <View style={styles.presetCheckmark}>
+                          <Ionicons name="checkmark" size={12} color="#fff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             {/* Unified Account Badge */}
-            <View style={styles.unifiedBadgeContainer}>
-              <Ionicons name="shield-checkmark" size={18} color="#10B981" />
-              <Text style={styles.unifiedBadgeText}>
-                {currentUser.email && currentUser.phone_number
-                  ? 'Unified Profile (Google + Phone Linked)'
-                  : currentUser.email
-                  ? 'Connected via Google Account'
-                  : 'Connected via Phone OTP'}
-              </Text>
-            </View>
+            {!isEditing && (
+              <View style={styles.unifiedBadgeContainer}>
+                <Ionicons name="shield-checkmark" size={18} color="#10B981" />
+                <Text style={styles.unifiedBadgeText}>
+                  {currentUser.email && currentUser.phone_number
+                    ? 'Unified Profile (Google + Phone Linked)'
+                    : currentUser.email
+                    ? 'Connected via Google Account'
+                    : 'Connected via Phone OTP'}
+                </Text>
+              </View>
+            )}
 
             {/* Profile Info Cards */}
             <View style={styles.section}>
@@ -141,7 +240,10 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
                 <Text style={styles.sectionLabel}>Identity & Contact Info</Text>
                 {!isEditing && (
                   <TouchableOpacity onPress={() => setIsEditing(true)}>
-                    <Text style={styles.editText}>Edit</Text>
+                    <View style={styles.editBtnBadge}>
+                      <Ionicons name="create-outline" size={14} color={theme.colors.primary} />
+                      <Text style={styles.editText}>Edit Profile</Text>
+                    </View>
                   </TouchableOpacity>
                 )}
               </View>
@@ -243,7 +345,13 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
               <View style={styles.editActions}>
                 <TouchableOpacity
                   style={[styles.btn, styles.cancelBtn]}
-                  onPress={() => setIsEditing(false)}
+                  onPress={() => {
+                    setIsEditing(false);
+                    setAvatarUrl(currentUser.avatar || PRESET_AVATARS[0]);
+                    setDisplayName(currentUser.display_name || '');
+                    setPhoneNumber(currentUser.phone_number || '');
+                    setEmail(currentUser.email || '');
+                  }}
                 >
                   <Text style={styles.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
@@ -255,7 +363,7 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
                   {saving ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.saveBtnText}>Save & Combine</Text>
+                    <Text style={styles.saveBtnText}>Save Changes</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -270,10 +378,12 @@ export default function UserProfileModal({ visible, onClose }: UserProfileModalP
             </View>
 
             {/* Sign Out Button */}
-            <TouchableOpacity style={styles.signOutBtn} activeOpacity={0.8} onPress={handleSignOut}>
-              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </TouchableOpacity>
+            {!isEditing && (
+              <TouchableOpacity style={styles.signOutBtn} activeOpacity={0.8} onPress={handleSignOut}>
+                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -294,7 +404,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: '88%',
+    maxHeight: '90%',
   },
   header: {
     flexDirection: 'row',
@@ -312,20 +422,93 @@ const styles = StyleSheet.create({
   },
   avatarSection: {
     alignItems: 'center',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   avatarWrapper: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+    position: 'relative',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: 3,
     borderColor: theme.colors.primary,
-    overflow: 'hidden',
-    marginBottom: 10,
+    overflow: 'visible',
+    marginBottom: 8,
   },
   avatar: {
     width: '100%',
     height: '100%',
+    borderRadius: 48,
+  },
+  changeAvatarBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: theme.colors.primary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    ...theme.shadows.card,
+  },
+  changePhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#EEF2FF',
+    marginTop: 4,
+  },
+  changePhotoText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  presetSection: {
+    marginVertical: 10,
+  },
+  presetTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    marginBottom: 8,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 4,
+  },
+  presetItem: {
+    position: 'relative',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+  },
+  presetItemSelected: {
+    borderColor: theme.colors.primary,
+  },
+  presetThumb: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+  },
+  presetCheckmark: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: theme.colors.primary,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nameText: {
     fontSize: 22,
@@ -345,7 +528,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 20,
-    marginVertical: 12,
+    marginVertical: 10,
     gap: 6,
     borderWidth: 1,
     borderColor: '#DCFCE7',
@@ -370,14 +553,23 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: theme.colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  editBtnBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
   editText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: theme.colors.primary,
   },
@@ -435,8 +627,8 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 14,
+    paddingVertical: 8,
+    fontSize: 15,
     color: theme.colors.textPrimary,
     marginTop: 4,
   },
@@ -454,11 +646,11 @@ const styles = StyleSheet.create({
   editActions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 10,
+    marginTop: 14,
   },
   btn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
   },
