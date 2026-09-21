@@ -139,7 +139,7 @@ export interface AuthContextType {
   error: string | null;
   login: (username: string, password: string) => Promise<User>;
   register: (username: string, password: string, displayName?: string, avatar?: string) => Promise<User>;
-  sendOtp: (phoneNumber: string) => Promise<{ success: boolean; debugCode?: string }>;
+  sendOtp: (phoneNumber: string) => Promise<{ success: boolean }>;
   verifyOtp: (phoneNumber: string, code: string, displayName?: string) => Promise<User>;
   phoneLogin: (phoneNumber: string, displayName?: string) => Promise<User>;
   googleSignIn: () => Promise<User>;

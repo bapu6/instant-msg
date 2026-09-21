@@ -151,7 +151,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const sendOtp = async (phoneNumber: string): Promise<{ success: boolean; debugCode?: string }> => {
+  const sendOtp = async (phoneNumber: string): Promise<{ success: boolean }> => {
     setError(null);
     try {
       return await sendFirebasePhoneOtp(phoneNumber);

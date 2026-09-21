@@ -126,12 +126,9 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response): Promise<any>
     const code = cleanPhone.includes('99999') ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(cleanPhone, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
 
-    console.log(`📱 [SMS/OTP] Code for ${cleanPhone}: ${code}`);
     res.json({
       success: true,
       message: 'OTP sent successfully',
-      // Return code in development/test environments for zero-friction testing
-      debugCode: code,
     });
   } catch (err: any) {
     console.error('Send OTP error:', err.message);

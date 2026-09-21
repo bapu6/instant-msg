@@ -124,7 +124,7 @@ export const api = {
     return data.user;
   },
 
-  async sendOtp(phoneNumber: string): Promise<{ success: boolean; debugCode?: string }> {
+  async sendOtp(phoneNumber: string): Promise<{ success: boolean }> {
     const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -73,11 +73,7 @@ export default function AuthScreen() {
       const res = await sendOtp(full);
       setAuthMode('otp');
       setResendCountdown(30);
-      if (res?.debugCode) {
-        setInfoMsg(`Verification code: ${res.debugCode}`);
-      } else {
-        setInfoMsg('Verification code sent to your mobile number.');
-      }
+      setInfoMsg('Verification code sent to your mobile number.');
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to send OTP. Please try again.');
     } finally {

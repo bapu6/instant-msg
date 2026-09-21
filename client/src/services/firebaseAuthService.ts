@@ -11,7 +11,7 @@ let confirmationResult: any = null;
  */
 export async function sendFirebasePhoneOtp(
   phoneNumber: string
-): Promise<{ success: boolean; debugCode?: string; isNativeFirebase: boolean }> {
+): Promise<{ success: boolean; isNativeFirebase: boolean }> {
   const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
 
   console.log('📱 [In-App OTP] Requesting verification code for:', cleanPhone);
