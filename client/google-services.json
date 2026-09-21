@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "674080265835-faln20brbq1qes0iuh94c83jcfskkpa6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.instantmsg.app",
+            "certificate_hash": "84738be6ad5747f1460615256740fa0ac393eaf4"
+          }
+        },
+        {
           "client_id": "674080265835-pq9e8lqslrl95blj08c15pnocs4hbfvl.apps.googleusercontent.com",
           "client_type": 3
         }
