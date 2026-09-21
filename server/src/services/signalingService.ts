@@ -153,7 +153,20 @@ class SignalingService {
               break;
             }
 
-            // 8. Read Receipt
+            // 8. Typing status handler
+            case 'typing': {
+              const { to, from, isTyping } = payload;
+              if (to && from) {
+                this.sendToUser(to, {
+                  type: 'typing-status',
+                  from: from.toLowerCase(),
+                  isTyping: Boolean(isTyping),
+                });
+              }
+              break;
+            }
+
+            // 9. Read Receipt
             case 'mark-read': {
               const { reader, sender } = payload;
               if (reader && sender) {

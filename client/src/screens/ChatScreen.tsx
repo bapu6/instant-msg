@@ -43,11 +43,45 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
   const [isContactOnline, setIsContactOnline] = useState<boolean>(contact.isOnline ?? false);
   const [contactLastSeen, setContactLastSeen] = useState<string | null | undefined>(contact.lastSeen);
   const [hidePresence, setHidePresence] = useState<boolean>(contact.hidePresence ?? false);
+  const [isContactTyping, setIsContactTyping] = useState<boolean>(false);
+  const typingTimeoutRef = useRef<any>(null);
   const [contactStatus, setContactStatus] = useState<string>(contact.contactStatus || 'none');
   const [initiatedBy, setInitiatedBy] = useState<string | undefined>(contact.initiatedBy);
   const [contactPublicKey, setContactPublicKey] = useState<string | null>(contact.publicKey || null);
   const contactPublicKeyRef = useRef<string | null>(contact.publicKey || null);
   const flatListRef = useRef<FlatList<Message>>(null);
+
+  // Subscribe to real-time typing events
+  useEffect(() => {
+    const contactUser = (contact.username || contact.id || '').toLowerCase();
+    const handleTypingStatus = (data: any) => {
+      if (data && data.from && data.from.toLowerCase() === contactUser) {
+        setIsContactTyping(Boolean(data.isTyping));
+      }
+    };
+
+    callService.on('typing-status', handleTypingStatus);
+    return () => {
+      callService.off('typing-status', handleTypingStatus);
+    };
+  }, [contact]);
+
+  // Handle local user typing broadcast
+  const handleInputChange = (text: string) => {
+    setInputText(text);
+    const contactUser = contact.username || contact.id;
+    if (!contactUser || contact.isGroup) return;
+
+    callService.sendTypingStatus(contactUser, true);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      callService.sendTypingStatus(contactUser, false);
+    }, 2500);
+  };
 
   useEffect(() => {
     contactPublicKeyRef.current = contactPublicKey;
@@ -285,6 +319,7 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
     const textToSend = inputText.trim();
     const contactUser = contact.username || contact.id;
     setInputText('');
+    callService.sendTypingStatus(contactUser, false);
 
     // Optimistic message
     const tempMsg: Message = {
@@ -457,12 +492,9 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
             <Text style={styles.contactName} numberOfLines={1}>
               {contactDisplayName}
             </Text>
-            {!contact.isGroup && (
-              <Ionicons name="lock-closed" size={13} color="#25D366" style={{ marginLeft: 5 }} />
-            )}
           </View>
-          {hidePresence ? (
-            <Text style={styles.offlineStatus}>Offline</Text>
+          {hidePresence ? null : isContactTyping ? (
+            <Text style={styles.activeNowStatus}>typing...</Text>
           ) : isContactOnline ? (
             <Text style={styles.activeNowStatus}>Active now</Text>
           ) : (
@@ -602,7 +634,7 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
             placeholder="Type a message..."
             placeholderTextColor={theme.colors.textTertiary}
             value={inputText}
-            onChangeText={setInputText}
+            onChangeText={handleInputChange}
             onFocus={() => {
               setTimeout(() => {
                 flatListRef.current?.scrollToEnd({ animated: true });

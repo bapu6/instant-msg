@@ -183,8 +183,27 @@ class CallService {
         break;
       }
 
+      case 'typing-status': {
+        this.emit('typing-status', data);
+        break;
+      }
+
       default:
         break;
+    }
+  }
+
+  /**
+   * Broadcast typing / stopped typing status to target user
+   */
+  public sendTypingStatus(to: string, isTyping: boolean) {
+    if (to && this.currentUsername) {
+      this.sendWs({
+        type: 'typing',
+        to: to.toLowerCase(),
+        from: this.currentUsername.toLowerCase(),
+        isTyping: Boolean(isTyping),
+      });
     }
   }
 
