@@ -1,0 +1,23 @@
+{
+  "name": "instant-msg-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Instant Messaging App with React Native Client and XMPP Docker Server",
+  "scripts": {
+    "client": "npm start --prefix client",
+    "client:android": "npm run android --prefix client",
+    "client:ios": "npm run ios --prefix client",
+    "client:web": "npm run web --prefix client",
+    "server:up": "docker compose -f server/docker-compose.yml up -d && node server/scripts/init-ejabberd-users.js",
+    "server:seed": "node server/scripts/init-ejabberd-users.js",
+    "server:down": "docker compose -f server/docker-compose.yml down",
+    "server:logs": "docker compose -f server/docker-compose.yml logs -f",
+    "server:restart": "docker compose -f server/docker-compose.yml restart",
+    "server:test": "node server/test-xmpp.js",
+    "api": "npm run dev --prefix server",
+    "server:api": "npm run dev --prefix server",
+    "build:server": "npm run build --prefix server",
+    "typecheck:server": "npm run typecheck --prefix server",
+    "typecheck:client": "npm run typecheck --prefix client"
+  }
+}

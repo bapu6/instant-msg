@@ -1,0 +1,77 @@
+services:
+  ejabberd:
+    image: ejabberd/ecs:latest
+    container_name: instant_msg_xmpp
+    restart: unless-stopped
+    environment:
+      - EJABBERD_DOMAIN=${XMPP_DOMAIN:-localhost}
+      - EJABBERD_ADMINS=${EJABBERD_ADMINS:-admin@localhost}
+      - EJABBERD_USERS=${EJABBERD_USERS:-admin@localhost:adminpass}
+    ports:
+      - "5222:5222"   # XMPP Client-to-Server (c2s)
+      - "5280:5280"   # HTTP, WebSocket (/ws), BOSH (/bosh), Admin (/admin)
+      - "5443:5443"   # HTTPS / WSS (optional)
+    volumes:
+      - ./conf/ejabberd.yml:/opt/ejabberd/conf/ejabberd.yml:ro
+      - ejabberd_data:/opt/ejabberd/database
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: instant_msg_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-instant_msg}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: instant_msg_api
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    environment:
+      - BACKEND_PORT=${BACKEND_PORT:-5000}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-instant_msg}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - UPLOAD_DIR=${UPLOAD_DIR:-/app/uploads}
+      - AWS_REGION=${AWS_REGION:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
+      - AWS_S3_PUBLIC_URL=${AWS_S3_PUBLIC_URL:-}
+      - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT:-}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - postgres
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: instant_msg_turn
+    restart: unless-stopped
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49152-49200:49152-49200/udp"
+    volumes:
+      - ./conf/turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+volumes:
+  ejabberd_data:
+    driver: local
+  postgres_data:
+    driver: local
+  uploads_data:
+    driver: local

@@ -1,0 +1,441 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Image,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { theme } from '../theme/theme';
+import { useAuth } from '../context/AuthContext';
+import api from '../config/api';
+import cryptoService, { readAssetBytes } from '../services/cryptoService';
+import MessageBubble from '../components/MessageBubble';
+import { ChatContact, Message, AttachmentAsset, MessageType } from '../types';
+
+interface ChatScreenProps {
+  contact: ChatContact;
+  onBack: () => void;
+  onStartCall?: (contact: ChatContact, isVideo: boolean) => void;
+}
+
+export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenProps) {
+  const insets = useSafeAreaInsets();
+  const { currentUser } = useAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputText, setInputText] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const flatListRef = useRef<FlatList<Message>>(null);
+
+  // Fetch messages from PostgreSQL
+  const fetchMessages = async () => {
+    if (!currentUser || !contact) return;
+    try {
+      const contactUser = contact.username || contact.id;
+      const msgs = await api.getMessages(currentUser.username, contactUser);
+      setMessages(msgs);
+    } catch (err) {
+      console.error('Failed to load conversation:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+
+    // Polling interval to simulate real-time message updates
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, [contact]);
+
+  // Send Text Message
+  const handleSendText = async () => {
+    if (!inputText.trim() || !currentUser) return;
+
+    const textToSend = inputText.trim();
+    const contactUser = contact.username || contact.id;
+    setInputText('');
+
+    // Optimistic message
+    const tempMsg: Message = {
+      id: Date.now(),
+      sender: currentUser.username,
+      recipient: contactUser,
+      body: textToSend,
+      message_type: 'text',
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, tempMsg]);
+
+    try {
+      const saved = await api.sendMessage({
+        sender: currentUser.username,
+        recipient: contactUser,
+        body: textToSend,
+        message_type: 'text',
+      });
+      // Replace with saved message from PostgreSQL
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempMsg.id ? saved : m))
+      );
+    } catch (err) {
+      console.error('Failed to save message:', err);
+      Alert.alert('Error', 'Could not send message. Please try again.');
+    }
+  };
+
+  // Pick, Encrypt (AES-GCM 256), and Send Attachment
+  const handlePickDocument = async () => {
+    if (!currentUser) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      setUploading(true);
+      setUploadStatus(`Encrypting ${asset.name}...`);
+
+      // Determine true message type from original name & mime
+      const ext = (asset.name || '').split('.').pop()?.toLowerCase() || '';
+      let msgType: MessageType = 'file';
+      if (asset.mimeType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+        msgType = 'image';
+      } else if (asset.mimeType?.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
+        msgType = 'video';
+      } else if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'].includes(ext)) {
+        msgType = 'document';
+      }
+
+      // 1. Read raw file bytes safely across Web and Mobile
+      const rawBytes = await readAssetBytes(asset);
+
+      // 2. Client-Side E2EE: Encrypt bytes with AES-GCM 256
+      const { encryptedBlob, encryptedBytes, encryptionKey, encryptionIv } = await cryptoService.encryptFile(rawBytes);
+
+      setUploadStatus(`Uploading encrypted data to S3...`);
+
+      // 3. Upload ciphertext to S3 (S3 only ever sees encrypted noise)
+      const uploaded = await api.uploadFile({
+        uri: asset.uri,
+        name: `${asset.name || 'file'}.enc`,
+        mimeType: 'application/octet-stream',
+        size: encryptedBytes.length,
+        blob: encryptedBlob || undefined,
+        bytes: encryptedBytes,
+      });
+
+      setUploadStatus('Securing conversation...');
+
+      const contactUser = contact.username || contact.id;
+
+      // 4. Save message with S3 media URL and encryption keys
+      const saved = await api.sendMessage({
+        sender: currentUser.username,
+        recipient: contactUser,
+        body: '',
+        message_type: msgType,
+        media_url: uploaded.url,
+        media_name: asset.name,
+        media_size: asset.size || encryptedBytes.length,
+        media_mime: asset.mimeType,
+        encryption_key: encryptionKey,
+        encryption_iv: encryptionIv,
+      });
+
+      setMessages((prev) => [...prev, saved]);
+    } catch (err: any) {
+      console.error('E2EE Upload failed:', err);
+      Alert.alert('Upload Failed', err.message || 'Could not encrypt or upload file');
+    } finally {
+      setUploading(false);
+      setUploadStatus('');
+    }
+  };
+
+  const contactDisplayName = contact.display_name || contact.name || contact.username || 'User';
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 24 : 12) + 8 }]}>
+        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+          <Ionicons name="chevron-back" size={26} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{ uri: contact.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
+            style={styles.avatar}
+          />
+          <View style={styles.onlineDot} />
+        </View>
+
+        <View style={styles.headerInfo}>
+          <Text style={styles.contactName} numberOfLines={1}>
+            {contactDisplayName}
+          </Text>
+          <Text style={styles.onlineStatus}>Active on XMPP</Text>
+        </View>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => onStartCall?.(contact, false)}
+          >
+            <Ionicons name="call-outline" size={22} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => onStartCall?.(contact, true)}
+          >
+            <Ionicons name="videocam-outline" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Uploading Banner */}
+      {uploading && (
+        <View style={styles.uploadBanner}>
+          <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 8 }} />
+          <Text style={styles.uploadBannerText}>{uploadStatus}</Text>
+        </View>
+      )}
+
+      {/* Messages List */}
+      {loading ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
+          renderItem={({ item }) => (
+            <MessageBubble
+              message={item}
+              isMe={item.sender?.toLowerCase() === currentUser?.username?.toLowerCase()}
+            />
+          )}
+          contentContainerStyle={styles.messagesList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="chatbox-ellipses-outline" size={32} color={theme.colors.primary} />
+              </View>
+              <Text style={styles.emptyText}>No messages yet</Text>
+              <Text style={styles.emptySubText}>
+                Send a message, photo, video, PDF, Word, Excel, or ZIP to start chatting!
+              </Text>
+            </View>
+          }
+        />
+      )}
+
+      {/* Input Bar */}
+      <View style={styles.inputContainer}>
+        {/* Attachment Button */}
+        <TouchableOpacity
+          style={styles.attachButton}
+          onPress={handlePickDocument}
+          disabled={uploading}
+        >
+          <Ionicons name="attach" size={24} color={theme.colors.primary} />
+        </TouchableOpacity>
+
+        {/* Text Input */}
+        <TextInput
+          style={styles.textInput}
+          placeholder="Type a message..."
+          placeholderTextColor={theme.colors.textTertiary}
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+          maxLength={1000}
+        />
+
+        {/* Send Button */}
+        <TouchableOpacity
+          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+          onPress={handleSendText}
+          disabled={!inputText.trim()}
+        >
+          <Ionicons name="arrow-up" size={20} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingTop: Platform.OS === 'ios' ? 44 : 14,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  backButton: {
+    padding: 6,
+    marginRight: 4,
+  },
+  avatarContainer: {
+    position: 'relative',
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.online,
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+  },
+  headerInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  contactName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  onlineStatus: {
+    fontSize: 12,
+    color: theme.colors.online,
+    marginTop: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  iconButton: {
+    padding: 6,
+  },
+  uploadBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+  },
+  uploadBannerText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  centerLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messagesList: {
+    paddingVertical: 14,
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    marginTop: 60,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  emptySubText: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  attachButton: {
+    padding: 8,
+    marginRight: 4,
+  },
+  textInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    backgroundColor: theme.colors.background,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  sendButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  sendButtonDisabled: {
+    opacity: 0.4,
+  },
+});

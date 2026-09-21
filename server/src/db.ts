@@ -1,0 +1,111 @@
+import { Pool, QueryResult, QueryResultRow } from 'pg';
+import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+export const pool = new Pool({
+  host: process.env.POSTGRES_HOST || 'localhost',
+  port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
+  database: process.env.POSTGRES_DB || 'instant_msg',
+  user: process.env.POSTGRES_USER || 'postgres',
+  password: process.env.POSTGRES_PASSWORD || 'postgres',
+});
+
+pool.on('error', (err: Error) => {
+  console.error('Unexpected error on idle PostgreSQL client:', err);
+});
+
+export const query = <R extends QueryResultRow = any>(
+  text: string,
+  params?: any[]
+): Promise<QueryResult<R>> => {
+  return pool.query<R>(text, params);
+};
+
+export async function initDb(): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        display_name VARCHAR(150),
+        phone_number VARCHAR(30) UNIQUE,
+        avatar TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(30) UNIQUE;
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        sender VARCHAR(100) NOT NULL,
+        recipient VARCHAR(100) NOT NULL,
+        body TEXT,
+        message_type VARCHAR(50) DEFAULT 'text',
+        media_url TEXT,
+        media_name VARCHAR(255),
+        media_size BIGINT,
+        media_mime VARCHAR(100),
+        encryption_key TEXT,
+        encryption_iv TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS encryption_key TEXT;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS encryption_iv TEXT;
+
+      CREATE TABLE IF NOT EXISTS chat_groups (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        avatar TEXT,
+        description TEXT,
+        created_by VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS group_members (
+        id SERIAL PRIMARY KEY,
+        group_id INTEGER REFERENCES chat_groups(id) ON DELETE CASCADE,
+        username VARCHAR(100) NOT NULL,
+        role VARCHAR(50) DEFAULT 'member',
+        joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (group_id, username)
+      );
+
+      CREATE TABLE IF NOT EXISTS group_messages (
+        id SERIAL PRIMARY KEY,
+        group_id INTEGER REFERENCES chat_groups(id) ON DELETE CASCADE,
+        sender VARCHAR(100) NOT NULL,
+        body TEXT,
+        message_type VARCHAR(50) DEFAULT 'text',
+        media_url TEXT,
+        media_name VARCHAR(255),
+        media_size BIGINT,
+        media_mime VARCHAR(100),
+        encryption_key TEXT,
+        encryption_iv TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (sender, recipient, created_at);
+      CREATE INDEX IF NOT EXISTS idx_messages_recipient ON messages (recipient, created_at);
+      CREATE INDEX IF NOT EXISTS idx_group_messages_group ON group_messages (group_id, created_at);
+
+      INSERT INTO users (username, password, display_name, phone_number, avatar)
+      VALUES 
+      ('admin', 'adminpass', 'System Admin', '+910000000000', 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80')
+      ON CONFLICT (username) DO NOTHING;
+    `);
+    console.log('✅ PostgreSQL database schema verified and migrated successfully.');
+  } catch (err: any) {
+    console.error('❌ Failed to initialize database schema:', err.message);
+  }
+}
+
+export default {
+  query,
+  pool,
+  initDb,
+};

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "674080265835",
+    "project_id": "instant-msg-5ee6c",
+    "storage_bucket": "instant-msg-5ee6c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:674080265835:android:ec7e449e6a8d4e49b7032e",
+        "android_client_info": {
+          "package_name": "com.instantmsg.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "674080265835-dqmuukscsduicq2rioff0dq5b1m6fncu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.instantmsg.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "674080265835-pq9e8lqslrl95blj08c15pnocs4hbfvl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6assAXHaJV0eGYNKAumBlSZ9E-B56bcY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "674080265835-pq9e8lqslrl95blj08c15pnocs4hbfvl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

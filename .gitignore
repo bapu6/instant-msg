@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Expo & Metro
+.expo/
+client/.expo/
+dist/
+client/dist/
+server/dist/
+web-build/
+client/web-build/
+expo-env.d.ts
+client/expo-env.d.ts
+.metro-health-check*
+
+# Docker / Backend data
+server/data/
+server/database/
+server/uploads/
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+/ios
+/android
+client/ios
+client/android
+
+# Logs & Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS
+.DS_Store
+*.pem
+Thumbs.db
+
+# Environment variables
+.env*.local
+.env
+client/.env
+server/.env
