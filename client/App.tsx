@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, ActivityIndicator, Platform, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -8,7 +8,12 @@ import HomeScreen from './src/screens/HomeScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import GroupChatScreen from './src/screens/GroupChatScreen';
 import CallModal from './src/components/CallModal';
+import SplashScreen from './src/components/SplashScreen';
+import InAppNotificationBanner, { NotificationBannerData } from './src/components/InAppNotificationBanner';
 import callService from './src/services/callService';
+import notificationService from './src/services/notificationService';
+import cryptoService from './src/services/cryptoService';
+import api from './src/config/api';
 import { theme } from './src/theme/theme';
 import { ChatContact, ChatGroup, CallState } from './src/types';
 
@@ -30,8 +35,20 @@ function MainNavigator() {
   const [activeChat, setActiveChat] = useState<ChatContact | null>(null);
   const [activeGroup, setActiveGroup] = useState<ChatGroup | null>(null);
   const [callState, setCallState] = useState<CallState>(INITIAL_CALL_STATE);
+  const [splashFinished, setSplashFinished] = useState<boolean>(false);
+  const [notificationData, setNotificationData] = useState<NotificationBannerData | null>(null);
+  const activeChatRef = useRef<ChatContact | null>(null);
 
-  // Initialize WebRTC Signaling connection when user is authenticated
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
+  // Initialize native notifications
+  useEffect(() => {
+    notificationService.init().catch(() => {});
+  }, []);
+
+  // Initialize WebRTC Signaling & Real-Time message notifications
   useEffect(() => {
     if (currentUser?.username) {
       callService.init(currentUser.username);
@@ -62,14 +79,57 @@ function MainNavigator() {
         setCallState(INITIAL_CALL_STATE);
       };
 
+      // Real-time incoming message notification handler
+      const handleNewMessage = async (data: any) => {
+        const msg = data.message;
+        if (!msg) return;
+
+        const sender = msg.sender;
+        if (!sender || sender.toLowerCase() === currentUser.username.toLowerCase()) return;
+
+        // If currently in active chat with this user, don't show floating notification
+        const curActive = activeChatRef.current?.username || activeChatRef.current?.id;
+        if (curActive && curActive.toLowerCase() === sender.toLowerCase()) {
+          return;
+        }
+
+        let preview = msg.body || 'Sent an attachment';
+        if (msg.message_type !== 'text' && msg.media_name) {
+          preview = `[${(msg.message_type || 'file').toUpperCase()}] ${msg.media_name}`;
+        } else if (msg.body && msg.encryption_iv && currentUser.private_key) {
+          try {
+            const senderPub = await api.getUserPublicKey(sender);
+            if (senderPub) {
+              preview = cryptoService.decryptTextMessage(msg.body, msg.encryption_iv, currentUser.private_key, senderPub);
+            }
+          } catch {}
+        }
+
+        // 1. Show in-app floating banner
+        setNotificationData({
+          id: msg.id || Date.now(),
+          senderUsername: sender,
+          senderName: sender,
+          text: preview,
+        });
+
+        // 2. Show native system notification
+        notificationService.showIncomingMessageNotification(sender, preview, {
+          senderUsername: sender,
+          messageId: msg.id,
+        });
+      };
+
       callService.on('incoming-call', handleIncomingCall);
       callService.on('call-connected', handleCallConnected);
       callService.on('call-ended', handleCallEnded);
+      callService.on('new-message', handleNewMessage);
 
       return () => {
         callService.off('incoming-call', handleIncomingCall);
         callService.off('call-connected', handleCallConnected);
         callService.off('call-ended', handleCallEnded);
+        callService.off('new-message', handleNewMessage);
       };
     }
   }, [currentUser?.username]);
@@ -149,21 +209,31 @@ function MainNavigator() {
     setCallState(INITIAL_CALL_STATE);
   };
 
-  if (isInitializing) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
+  const handleOpenChatFromNotification = (senderUsername: string) => {
+    setActiveGroup(null);
+    setActiveChat({
+      id: senderUsername,
+      username: senderUsername,
+      name: senderUsername,
+      avatar: '',
+      lastMessage: '',
+      time: 'Now',
+      unreadCount: 0,
+      isOnline: true,
+      isGroup: false,
+    });
+    setNotificationData(null);
+  };
 
-  if (!currentUser) {
+  if (!currentUser && !isInitializing && splashFinished) {
     return <AuthScreen />;
   }
 
   return (
     <View style={styles.container}>
-      {activeGroup ? (
+      {!currentUser ? (
+        <AuthScreen />
+      ) : activeGroup ? (
         <GroupChatScreen
           group={activeGroup}
           onBack={() => setActiveGroup(null)}
@@ -192,6 +262,13 @@ function MainNavigator() {
         />
       )}
 
+      {/* Real-time In-App Message Banner */}
+      <InAppNotificationBanner
+        data={notificationData}
+        onPress={handleOpenChatFromNotification}
+        onDismiss={() => setNotificationData(null)}
+      />
+
       {/* Global WebRTC Audio / Video Call Modal */}
       <CallModal
         callState={callState}
@@ -199,6 +276,14 @@ function MainNavigator() {
         onAcceptCall={handleAcceptCall}
         onRejectCall={handleRejectCall}
       />
+
+      {/* Animated Project Splash Screen */}
+      {!splashFinished && (
+        <SplashScreen
+          isReady={!isInitializing}
+          onFinish={() => setSplashFinished(true)}
+        />
+      )}
     </View>
   );
 }

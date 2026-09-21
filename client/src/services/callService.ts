@@ -173,6 +173,11 @@ class CallService {
         break;
       }
 
+      case 'new-message': {
+        this.emit('new-message', data);
+        break;
+      }
+
       case 'new-group-message': {
         this.emit('new-group-message', data);
         break;

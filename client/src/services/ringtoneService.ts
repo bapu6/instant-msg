@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, Vibration } from 'react-native';
 
 class RingtoneService {
   private isPlaying: boolean = false;
@@ -7,6 +7,7 @@ class RingtoneService {
   private oscLoopTimer: any = null;
   private activeOscillators: any[] = [];
   private mobilePlayer: any = null;
+  private isVibrating: boolean = false;
 
   private startWebTone(type: 'ringback' | 'ringtone') {
     if (typeof window === 'undefined') return;
@@ -109,24 +110,52 @@ class RingtoneService {
 
   private async startMobileTone(type: 'ringback' | 'ringtone') {
     try {
-      const { createAudioPlayer } = require('expo-audio');
+      const { createAudioPlayer, setAudioModeAsync } = require('expo-audio');
+
+      // For incoming calls: obey device profile (Silent / Vibrate / Ring)
+      if (type === 'ringtone') {
+        try {
+          await setAudioModeAsync({
+            playsInSilentMode: false, // Disables audio playback in Silent / Vibrate mode
+          });
+        } catch {}
+
+        // Trigger phone vibration (1s vibrate, 1s pause, looping)
+        if (!this.isVibrating) {
+          this.isVibrating = true;
+          Vibration.vibrate([0, 1000, 1000], true);
+        }
+      } else {
+        // Ringback for caller (plays audibly in caller's earpiece)
+        try {
+          await setAudioModeAsync({
+            playsInSilentMode: true,
+          });
+        } catch {}
+      }
+
       const soundSource =
         type === 'ringback'
           ? require('../assets/audio/ringback.wav')
           : require('../assets/audio/ringtone.wav');
 
-      this.stopMobileTone();
+      this.stopMobileTone(false);
 
       this.mobilePlayer = createAudioPlayer(soundSource);
       this.mobilePlayer.loop = true;
-      this.mobilePlayer.volume = 0.8;
+      this.mobilePlayer.volume = 0.85;
       this.mobilePlayer.play();
     } catch (err) {
       console.warn('[RingtoneService] Mobile audio error:', err);
     }
   }
 
-  private stopMobileTone() {
+  private stopMobileTone(stopVibrate: boolean = true) {
+    if (stopVibrate && this.isVibrating) {
+      Vibration.cancel();
+      this.isVibrating = false;
+    }
+
     if (this.mobilePlayer) {
       try {
         this.mobilePlayer.pause();
@@ -162,7 +191,7 @@ class RingtoneService {
     this.isPlaying = false;
     this.currentMode = null;
     this.stopWebTone();
-    this.stopMobileTone();
+    this.stopMobileTone(true);
   }
 }
 
