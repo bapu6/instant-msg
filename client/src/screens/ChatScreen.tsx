@@ -44,7 +44,60 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
   const [hidePresence, setHidePresence] = useState<boolean>(contact.hidePresence ?? false);
   const [contactStatus, setContactStatus] = useState<string>(contact.contactStatus || 'none');
   const [initiatedBy, setInitiatedBy] = useState<string | undefined>(contact.initiatedBy);
+  const [contactPublicKey, setContactPublicKey] = useState<string | null>(contact.publicKey || null);
+  const contactPublicKeyRef = useRef<string | null>(contact.publicKey || null);
   const flatListRef = useRef<FlatList<Message>>(null);
+
+  useEffect(() => {
+    contactPublicKeyRef.current = contactPublicKey;
+  }, [contactPublicKey]);
+
+  // Fetch counterpart public key for E2EE
+  useEffect(() => {
+    const contactUser = contact.username || contact.id;
+    if (!contactUser || contact.isGroup) return;
+
+    let isMounted = true;
+    api.getUserPublicKey(contactUser).then((pk) => {
+      if (isMounted && pk) {
+        setContactPublicKey(pk);
+      }
+    }).catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [contact]);
+
+  // Decrypt incoming message with pairwise ECDH shared secret
+  const decryptMsg = (msg: Message, theirPub: string | null): Message => {
+    if (!theirPub || !currentUser?.private_key) {
+      return msg;
+    }
+    let decryptedBody = msg.body;
+    if (msg.body && msg.encryption_iv) {
+      decryptedBody = cryptoService.decryptTextMessage(
+        msg.body,
+        msg.encryption_iv,
+        currentUser.private_key,
+        theirPub
+      );
+    }
+    let decryptedKey = msg.encryption_key;
+    if (msg.encryption_key && msg.encryption_iv) {
+      decryptedKey = cryptoService.decryptMediaKey(
+        msg.encryption_key,
+        msg.encryption_iv,
+        currentUser.private_key,
+        theirPub
+      );
+    }
+    return {
+      ...msg,
+      body: decryptedBody,
+      encryption_key: decryptedKey,
+    };
+  };
 
   // Check contact relationship and mark messages as read if accepted
   useEffect(() => {
@@ -103,8 +156,19 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
     if (!currentUser || !contact) return;
     try {
       const contactUser = contact.username || contact.id;
+      let pubKey = contactPublicKeyRef.current;
+      if (!pubKey && !contact.isGroup) {
+        try {
+          pubKey = await api.getUserPublicKey(contactUser);
+          if (pubKey) {
+            setContactPublicKey(pubKey);
+          }
+        } catch {}
+      }
+
       const msgs = await api.getMessages(currentUser.username, contactUser);
-      setMessages(msgs);
+      const decrypted = msgs.map((m) => decryptMsg(m, pubKey));
+      setMessages(decrypted);
 
       // If accepted, mark messages as read
       if (contactStatus === 'accepted') {
@@ -233,15 +297,37 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
     setMessages((prev) => [...prev, tempMsg]);
 
     try {
+      let bodyToSend = textToSend;
+      let encryptionIv: string | null = null;
+
+      let pubKey = contactPublicKeyRef.current;
+      if (!pubKey && !contact.isGroup) {
+        try {
+          pubKey = await api.getUserPublicKey(contactUser);
+          if (pubKey) setContactPublicKey(pubKey);
+        } catch {}
+      }
+
+      if (pubKey && currentUser.private_key) {
+        const enc = cryptoService.encryptTextMessage(
+          textToSend,
+          currentUser.private_key,
+          pubKey
+        );
+        bodyToSend = enc.ciphertext;
+        encryptionIv = enc.iv;
+      }
+
       const saved = await api.sendMessage({
         sender: currentUser.username,
         recipient: contactUser,
-        body: textToSend,
+        body: bodyToSend,
         message_type: 'text',
+        encryption_iv: encryptionIv,
       });
-      // Replace with saved message from PostgreSQL
+      // Replace with saved message from PostgreSQL (preserving plaintext body locally)
       setMessages((prev) =>
-        prev.map((m) => (m.id === tempMsg.id ? saved : m))
+        prev.map((m) => (m.id === tempMsg.id ? { ...saved, body: textToSend } : m))
       );
     } catch (err) {
       console.error('Failed to save message:', err);
@@ -299,7 +385,29 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
 
       const contactUser = contact.username || contact.id;
 
-      // 4. Save message with S3 media URL and encryption keys
+      // 4. Encrypt media key with pairwise ECDH shared secret
+      let pubKey = contactPublicKeyRef.current;
+      if (!pubKey && !contact.isGroup) {
+        try {
+          pubKey = await api.getUserPublicKey(contactUser);
+          if (pubKey) setContactPublicKey(pubKey);
+        } catch {}
+      }
+
+      let payloadEncryptionKey = encryptionKey;
+      let payloadEncryptionIv = encryptionIv;
+
+      if (pubKey && currentUser.private_key) {
+        const encKey = cryptoService.encryptMediaKey(
+          encryptionKey,
+          currentUser.private_key,
+          pubKey
+        );
+        payloadEncryptionKey = encKey.encryptedKey;
+        payloadEncryptionIv = encKey.keyIv;
+      }
+
+      // 5. Save message with S3 media URL and encrypted media key
       const saved = await api.sendMessage({
         sender: currentUser.username,
         recipient: contactUser,
@@ -309,11 +417,12 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
         media_name: asset.name,
         media_size: asset.size || encryptedBytes.length,
         media_mime: asset.mimeType,
-        encryption_key: encryptionKey,
-        encryption_iv: encryptionIv,
+        encryption_key: payloadEncryptionKey,
+        encryption_iv: payloadEncryptionIv,
       });
 
-      setMessages((prev) => [...prev, saved]);
+      // Retain decrypted local key for immediate view
+      setMessages((prev) => [...prev, { ...saved, encryption_key: encryptionKey, encryption_iv: encryptionIv }]);
     } catch (err: any) {
       console.error('E2EE Upload failed:', err);
       Alert.alert('Upload Failed', err.message || 'Could not encrypt or upload file');
@@ -346,9 +455,14 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
         </View>
 
         <View style={styles.headerInfo}>
-          <Text style={styles.contactName} numberOfLines={1}>
-            {contactDisplayName}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.contactName} numberOfLines={1}>
+              {contactDisplayName}
+            </Text>
+            {!contact.isGroup && (
+              <Ionicons name="lock-closed" size={13} color="#25D366" style={{ marginLeft: 5 }} />
+            )}
+          </View>
           {hidePresence ? (
             <Text style={styles.offlineStatus}>Offline</Text>
           ) : isContactOnline ? (

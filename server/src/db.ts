@@ -40,6 +40,10 @@ export async function initDb(): Promise<void> {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(150);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS hide_presence BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS encrypted_private_key TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS key_salt TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS key_iv TEXT;
       CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 
       CREATE TABLE IF NOT EXISTS messages (

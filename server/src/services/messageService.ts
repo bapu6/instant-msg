@@ -197,8 +197,8 @@ export async function getRecentConversations(username: string): Promise<RecentCo
         GREATEST(LOWER(sender), LOWER(recipient))
       )
         id, sender, recipient, body, message_type,
-        media_url, media_name, media_size, created_at,
-        is_delivered, is_read
+        media_url, media_name, media_size, encryption_key, encryption_iv,
+        created_at, is_delivered, is_read
       FROM messages
       WHERE LOWER(sender) = $1 OR LOWER(recipient) = $1
       ORDER BY 
@@ -217,6 +217,7 @@ export async function getRecentConversations(username: string): Promise<RecentCo
     SELECT lm.*,
            u.display_name AS counterpart_name,
            u.avatar AS counterpart_avatar,
+           u.public_key AS counterpart_public_key,
            c.status AS contact_status,
            c.initiated_by,
            COALESCE(uc.unread_count, 0)::int AS unread_count,

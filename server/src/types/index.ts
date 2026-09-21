@@ -9,6 +9,10 @@ export interface User {
   last_seen?: string | null;
   hide_presence?: boolean;
   is_online?: boolean;
+  public_key?: string | null;
+  encrypted_private_key?: string | null;
+  key_salt?: string | null;
+  key_iv?: string | null;
   created_at: string;
 }
 
@@ -91,6 +95,7 @@ export interface RecentConversationSummary {
   contact_status?: ContactStatus | null;
   initiated_by?: string | null;
   unread_count?: number;
+  counterpart_public_key?: string | null;
 }
 
 export type ContactStatus = 'pending' | 'accepted' | 'declined' | 'blocked';

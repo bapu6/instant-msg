@@ -79,6 +79,9 @@ export interface ConversationSummaryItem {
   contact_status?: 'pending' | 'accepted' | 'declined' | 'none' | null;
   initiated_by?: string | null;
   unread_count?: number;
+  encryption_key?: string | null;
+  encryption_iv?: string | null;
+  counterpart_public_key?: string | null;
 }
 
 async function safeJson(res: Response): Promise<any> {
@@ -218,7 +221,58 @@ export const api = {
     };
   },
 
-  // Users
+  // Users & E2EE Keys
+  async updateUserKeys(payload: {
+    username: string;
+    publicKey: string;
+    encryptedPrivateKey?: string | null;
+    keySalt?: string | null;
+    keyIv?: string | null;
+  }): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/api/users/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await safeJson(res);
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to update encryption keys');
+    }
+    return data;
+  },
+
+  async getUserPublicKey(username: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(username)}/public-key`);
+      const data = await safeJson(res);
+      if (res.ok && data.success) {
+        return data.publicKey;
+      }
+    } catch {}
+    return null;
+  },
+
+  async getUserKeyBackup(username: string): Promise<{
+    publicKey: string | null;
+    encryptedPrivateKey: string | null;
+    keySalt: string | null;
+    keyIv: string | null;
+  } | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(username)}/key-backup`);
+      const data = await safeJson(res);
+      if (res.ok && data.success) {
+        return {
+          publicKey: data.publicKey,
+          encryptedPrivateKey: data.encryptedPrivateKey,
+          keySalt: data.keySalt,
+          keyIv: data.keyIv,
+        };
+      }
+    } catch {}
+    return null;
+  },
+
   async getUsers(excludeUsername: string | null = null): Promise<User[]> {
     const url = excludeUsername
       ? `${API_BASE_URL}/api/users?exclude=${encodeURIComponent(excludeUsername)}`

@@ -8,6 +8,11 @@ export interface User {
   last_seen?: string | null;
   hide_presence?: boolean;
   is_online?: boolean;
+  public_key?: string | null;
+  encrypted_private_key?: string | null;
+  key_salt?: string | null;
+  key_iv?: string | null;
+  private_key?: string | null;
   created_at?: string;
 }
 
@@ -53,6 +58,9 @@ export interface ChatContact {
   phoneNumber?: string | null;
   email?: string | null;
   timestamp?: number;
+  publicKey?: string | null;
+  encryptionIv?: string | null;
+  encryptionKey?: string | null;
 }
 
 export interface ContactItem {

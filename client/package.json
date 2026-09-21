@@ -7,6 +7,7 @@
     "@expo/metro-runtime": "~57.0.16",
     "@expo/vector-icons": "^15.0.2",
     "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "^2.4.0",
     "@react-native-firebase/app": "^26.4.0",
     "@react-native-firebase/auth": "^26.4.0",
     "@react-native-google-signin/google-signin": "^16.1.5",

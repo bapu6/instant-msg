@@ -8,9 +8,84 @@
 
 import { Platform } from 'react-native';
 import { gcm } from '@noble/ciphers/aes.js';
+import { x25519 } from '@noble/curves/ed25519.js';
+import { pbkdf2 } from '@noble/hashes/pbkdf2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import * as ExpoCrypto from 'expo-crypto';
 
 const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+export interface KeyPair {
+  publicKey: string; // base64
+  privateKey: string; // base64
+}
+
+export interface EncryptedPrivateKeyBackup {
+  encryptedPrivateKey: string; // base64
+  keySalt: string; // base64
+  keyIv: string; // base64
+}
+
+/**
+ * Universal UTF-8 to Uint8Array encoder (pure JS, safe for Hermes / RN / Web)
+ */
+export function utf8ToBytes(str: string): Uint8Array {
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(str);
+  }
+  const utf8: number[] = [];
+  for (let i = 0; i < str.length; i++) {
+    let charcode = str.charCodeAt(i);
+    if (charcode < 0x80) utf8.push(charcode);
+    else if (charcode < 0x800) {
+      utf8.push(0xc0 | (charcode >> 6), 0x80 | (charcode & 0x3f));
+    } else if (charcode < 0xd800 || charcode >= 0xe000) {
+      utf8.push(0xe0 | (charcode >> 12), 0x80 | ((charcode >> 6) & 0x3f), 0x80 | (charcode & 0x3f));
+    } else {
+      i++;
+      charcode = 0x10000 + (((charcode & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
+      utf8.push(
+        0xf0 | (charcode >> 18),
+        0x80 | ((charcode >> 12) & 0x3f),
+        0x80 | ((charcode >> 6) & 0x3f),
+        0x80 | (charcode & 0x3f)
+      );
+    }
+  }
+  return new Uint8Array(utf8);
+}
+
+/**
+ * Universal Uint8Array to UTF-8 decoder (pure JS, safe for Hermes / RN / Web)
+ */
+export function bytesToUtf8(bytes: Uint8Array): string {
+  if (typeof TextDecoder !== 'undefined') {
+    return new TextDecoder().decode(bytes);
+  }
+  let out = '';
+  let i = 0;
+  const len = bytes.length;
+  while (i < len) {
+    const c = bytes[i++];
+    if (c < 128) {
+      out += String.fromCharCode(c);
+    } else if (c > 191 && c < 224) {
+      const c2 = bytes[i++];
+      out += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+    } else if (c > 223 && c < 240) {
+      const c2 = bytes[i++];
+      const c3 = bytes[i++];
+      out += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+    } else {
+      const c2 = bytes[i++];
+      const c3 = bytes[i++];
+      const c4 = bytes[i++];
+      let u = (((c & 7) << 18) | ((c2 & 63) << 12) | ((c3 & 63) << 6) | (c4 & 63)) - 0x10000;
+      out += String.fromCharCode((u >> 10) + 0xd800, (u & 0x3ff) + 0xdc00);
+    }
+  }
+  return out;
+}
 
 /**
  * Universal Uint8Array to Base64 encoder (pure JS, safe for Hermes / RN / Web)
@@ -233,6 +308,160 @@ export class CryptoService {
     } catch (err: any) {
       throw new Error(`Decryption failed: ${err.message || 'Tampered data or invalid key'}`);
     }
+  }
+
+  // ==========================================
+  // End-to-End Encryption (E2EE) Key Exchange
+  // ==========================================
+
+  /**
+   * Generates a new random X25519 keypair for the user
+   */
+  public generateKeyPair(): KeyPair {
+    const priv = getRandomBytes(32);
+    const pub = x25519.getPublicKey(priv);
+    return {
+      publicKey: uint8ArrayToBase64(pub),
+      privateKey: uint8ArrayToBase64(priv),
+    };
+  }
+
+  /**
+   * Derives a 32-byte shared secret from my private key and the counterpart's public key (Diffie-Hellman)
+   */
+  public computeSharedKey(myPrivateKeyB64: string, theirPublicKeyB64: string): Uint8Array {
+    const myPriv = base64ToUint8Array(myPrivateKeyB64);
+    const theirPub = base64ToUint8Array(theirPublicKeyB64);
+    if (myPriv.length !== 32 || theirPub.length !== 32) {
+      throw new Error('Invalid key length for X25519 ECDH');
+    }
+    return x25519.getSharedSecret(myPriv, theirPub);
+  }
+
+  /**
+   * Encrypts a text message with AES-256-GCM using the pairwise shared secret
+   */
+  public encryptTextMessage(
+    text: string,
+    myPrivateKeyB64: string,
+    theirPublicKeyB64: string
+  ): { ciphertext: string; iv: string } {
+    const sharedKey = this.computeSharedKey(myPrivateKeyB64, theirPublicKeyB64);
+    const iv = getRandomBytes(12);
+    const plainBytes = utf8ToBytes(text);
+    const cipher = gcm(sharedKey, iv);
+    const cipherBytes = cipher.encrypt(plainBytes);
+    return {
+      ciphertext: uint8ArrayToBase64(cipherBytes),
+      iv: uint8ArrayToBase64(iv),
+    };
+  }
+
+  /**
+   * Decrypts a text message with AES-256-GCM using the pairwise shared secret
+   */
+  public decryptTextMessage(
+    ciphertextB64: string,
+    ivB64: string | null | undefined,
+    myPrivateKeyB64: string,
+    theirPublicKeyB64: string
+  ): string {
+    if (!ivB64 || !ciphertextB64) return ciphertextB64;
+    try {
+      const sharedKey = this.computeSharedKey(myPrivateKeyB64, theirPublicKeyB64);
+      const iv = base64ToUint8Array(ivB64);
+      const cipherBytes = base64ToUint8Array(ciphertextB64);
+      const cipher = gcm(sharedKey, iv);
+      const plainBytes = cipher.decrypt(cipherBytes);
+      return bytesToUtf8(plainBytes);
+    } catch {
+      // Return raw string as fallback for legacy unencrypted messages
+      return ciphertextB64;
+    }
+  }
+
+  /**
+   * Encrypts a media decryption key so S3/server never sees the plaintext media key
+   */
+  public encryptMediaKey(
+    mediaKeyB64: string,
+    myPrivateKeyB64: string,
+    theirPublicKeyB64: string
+  ): { encryptedKey: string; keyIv: string } {
+    const sharedKey = this.computeSharedKey(myPrivateKeyB64, theirPublicKeyB64);
+    const iv = getRandomBytes(12);
+    const plainBytes = base64ToUint8Array(mediaKeyB64);
+    const cipher = gcm(sharedKey, iv);
+    const cipherBytes = cipher.encrypt(plainBytes);
+    return {
+      encryptedKey: uint8ArrayToBase64(cipherBytes),
+      keyIv: uint8ArrayToBase64(iv),
+    };
+  }
+
+  /**
+   * Decrypts the media AES key using the pairwise shared secret
+   */
+  public decryptMediaKey(
+    encryptedKeyB64: string | null | undefined,
+    keyIvB64: string | null | undefined,
+    myPrivateKeyB64: string,
+    theirPublicKeyB64: string
+  ): string {
+    if (!encryptedKeyB64) return '';
+    if (!keyIvB64) return encryptedKeyB64;
+    try {
+      const sharedKey = this.computeSharedKey(myPrivateKeyB64, theirPublicKeyB64);
+      const iv = base64ToUint8Array(keyIvB64);
+      const cipherBytes = base64ToUint8Array(encryptedKeyB64);
+      const cipher = gcm(sharedKey, iv);
+      const plainBytes = cipher.decrypt(cipherBytes);
+      return uint8ArrayToBase64(plainBytes);
+    } catch {
+      return encryptedKeyB64;
+    }
+  }
+
+  /**
+   * Derives a 256-bit AES key from a user password using PBKDF2-SHA256
+   */
+  public deriveKeyFromPassword(password: string, salt: Uint8Array): Uint8Array {
+    return pbkdf2(sha256, utf8ToBytes(password), salt, { c: 10000, dkLen: 32 });
+  }
+
+  /**
+   * Encrypts the user's private key with a password-derived key for safe cloud backup
+   */
+  public backupPrivateKey(privateKeyB64: string, password: string): EncryptedPrivateKeyBackup {
+    const salt = getRandomBytes(16);
+    const iv = getRandomBytes(12);
+    const key = this.deriveKeyFromPassword(password, salt);
+    const plainBytes = base64ToUint8Array(privateKeyB64);
+    const cipher = gcm(key, iv);
+    const cipherBytes = cipher.encrypt(plainBytes);
+    return {
+      encryptedPrivateKey: uint8ArrayToBase64(cipherBytes),
+      keySalt: uint8ArrayToBase64(salt),
+      keyIv: uint8ArrayToBase64(iv),
+    };
+  }
+
+  /**
+   * Decrypts and restores the user's private key from an encrypted cloud backup
+   */
+  public restorePrivateKey(
+    encryptedPrivateKeyB64: string,
+    password: string,
+    keySaltB64: string,
+    keyIvB64: string
+  ): string {
+    const salt = base64ToUint8Array(keySaltB64);
+    const iv = base64ToUint8Array(keyIvB64);
+    const key = this.deriveKeyFromPassword(password, salt);
+    const cipherBytes = base64ToUint8Array(encryptedPrivateKeyB64);
+    const cipher = gcm(key, iv);
+    const plainBytes = cipher.decrypt(cipherBytes);
+    return uint8ArrayToBase64(plainBytes);
   }
 }
 

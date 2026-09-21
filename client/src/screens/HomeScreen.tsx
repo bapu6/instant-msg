@@ -23,6 +23,7 @@ import NewChatModal from '../components/NewChatModal';
 import UserProfileModal from '../components/UserProfileModal';
 import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
+import cryptoService from '../services/cryptoService';
 import { ChatContact, FilterType, StoryItem, ChatGroup, PendingRequestItem } from '../types';
 
 interface HomeScreenProps {
@@ -67,14 +68,26 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
           const contactStatus = conv.contact_status || 'none';
           const unread = conv.unread_count || 0;
 
+          let lastMsg = conv.body || '';
+          if (conv.message_type === 'text') {
+            if (conv.body && conv.encryption_iv && conv.counterpart_public_key && currentUser?.private_key) {
+              lastMsg = cryptoService.decryptTextMessage(
+                conv.body,
+                conv.encryption_iv,
+                currentUser.private_key,
+                conv.counterpart_public_key
+              );
+            }
+          } else {
+            lastMsg = `[${(conv.message_type || 'file').toUpperCase()}] ${conv.media_name || ''}`;
+          }
+
           return {
             id: conv.counterpart_username,
             username: conv.counterpart_username,
             name: conv.counterpart_name || conv.counterpart_username,
             avatar: conv.counterpart_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-            lastMessage: conv.message_type === 'text' 
-              ? conv.body 
-              : `[${(conv.message_type || 'file').toUpperCase()}] ${conv.media_name || ''}`,
+            lastMessage: lastMsg,
             time: conv.created_at
               ? new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : 'Active',
@@ -86,6 +99,9 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
             initiatedBy: conv.initiated_by || undefined,
             isDelivered: Boolean(conv.is_delivered),
             isRead: Boolean(conv.is_read),
+            publicKey: conv.counterpart_public_key,
+            encryptionIv: conv.encryption_iv,
+            encryptionKey: conv.encryption_key,
           };
         });
 

@@ -445,6 +445,53 @@ export async function getAllUsers(excludeUsername: string | null = null): Promis
   });
 }
 
+export async function saveUserKeys(
+  username: string,
+  publicKey: string,
+  encryptedPrivateKey?: string | null,
+  keySalt?: string | null,
+  keyIv?: string | null
+): Promise<void> {
+  const u = username.toLowerCase().trim();
+  await db.query(
+    `UPDATE users 
+     SET public_key = $1,
+         encrypted_private_key = COALESCE($2, encrypted_private_key),
+         key_salt = COALESCE($3, key_salt),
+         key_iv = COALESCE($4, key_iv)
+     WHERE username = $5`,
+    [publicKey, encryptedPrivateKey || null, keySalt || null, keyIv || null, u]
+  );
+}
+
+export async function getUserPublicKey(username: string): Promise<string | null> {
+  const u = username.toLowerCase().trim();
+  const res = await db.query<{ public_key: string | null }>(
+    `SELECT public_key FROM users WHERE username = $1`,
+    [u]
+  );
+  return res.rows[0]?.public_key || null;
+}
+
+export async function getUserKeyBackup(username: string): Promise<{
+  public_key: string | null;
+  encrypted_private_key: string | null;
+  key_salt: string | null;
+  key_iv: string | null;
+} | null> {
+  const u = username.toLowerCase().trim();
+  const res = await db.query<{
+    public_key: string | null;
+    encrypted_private_key: string | null;
+    key_salt: string | null;
+    key_iv: string | null;
+  }>(
+    `SELECT public_key, encrypted_private_key, key_salt, key_iv FROM users WHERE username = $1`,
+    [u]
+  );
+  return res.rows[0] || null;
+}
+
 export default {
   registerUser,
   loginUser,
@@ -453,4 +500,8 @@ export default {
   linkOrUpdateProfile,
   getAllUsers,
   syncEjabberdUser,
+  saveUserKeys,
+  getUserPublicKey,
+  getUserKeyBackup,
 };
+

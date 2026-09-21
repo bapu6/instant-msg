@@ -294,6 +294,58 @@ app.get('/api/presence/:username', async (req: Request, res: Response): Promise<
   }
 });
 
+// 2.8 E2EE: Update or upload user cryptographic keys
+app.post('/api/users/keys', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { username, publicKey, encryptedPrivateKey, keySalt, keyIv } = req.body;
+    if (!username || !publicKey) {
+      return res.status(400).json({ success: false, error: 'username and publicKey are required' });
+    }
+    await authService.saveUserKeys(username, publicKey, encryptedPrivateKey, keySalt, keyIv);
+    res.json({ success: true, message: 'Cryptographic keys updated successfully' });
+  } catch (err: any) {
+    console.error('Update keys error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2.9 E2EE: Get Public Key for a user
+app.get('/api/users/:username/public-key', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const username = String(req.params.username || '');
+    const publicKey = await authService.getUserPublicKey(username);
+    if (!publicKey) {
+      return res.status(404).json({ success: false, error: 'Public key not found for user' });
+    }
+    res.json({ success: true, username, publicKey });
+  } catch (err: any) {
+    console.error('Get public key error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2.10 E2EE: Get Key Backup for session/device restoration
+app.get('/api/users/:username/key-backup', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const username = String(req.params.username || '');
+    const backup = await authService.getUserKeyBackup(username);
+    if (!backup || !backup.public_key) {
+      return res.status(404).json({ success: false, error: 'Key backup not found for user' });
+    }
+    res.json({
+      success: true,
+      username,
+      publicKey: backup.public_key,
+      encryptedPrivateKey: backup.encrypted_private_key,
+      keySalt: backup.key_salt,
+      keyIv: backup.key_iv,
+    });
+  } catch (err: any) {
+    console.error('Get key backup error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 3. Authentication: Login
 app.post('/api/login', async (req: Request, res: Response) => {
   try {
