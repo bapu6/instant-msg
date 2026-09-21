@@ -62,8 +62,8 @@ export async function verifyFirebasePhoneOtp(
       const userCredential = await confirmationResult.confirm(cleanCode);
       console.log('✅ [Firebase Native] Firebase confirmed user:', userCredential?.user?.uid);
 
-      // Firebase auth succeeded — register/login the user in our backend WITH displayName
-      const user = await api.phoneLogin(cleanPhone, displayName);
+      // Firebase auth succeeded — register/login the user in our backend WITH displayName & code verification
+      const user = await api.phoneLogin(cleanPhone, displayName, undefined, cleanCode);
       confirmationResult = null;
       return user;
     } catch (err: any) {
