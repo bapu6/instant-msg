@@ -13,11 +13,16 @@ interface TabItem {
 interface BottomNavBarProps {
   activeTab: string;
   onTabChange: (tabId: string) => void;
+  unreadChatsCount?: number;
 }
 
-export default function BottomNavBar({ activeTab, onTabChange }: BottomNavBarProps) {
+export default function BottomNavBar({
+  activeTab,
+  onTabChange,
+  unreadChatsCount = 0,
+}: BottomNavBarProps) {
   const tabs: TabItem[] = [
-    { id: 'chats', label: 'Chats', icon: 'chatbubbles', badge: 3 },
+    { id: 'chats', label: 'Chats', icon: 'chatbubbles', badge: unreadChatsCount },
     { id: 'calls', label: 'Calls', icon: 'call', badge: 0 },
     { id: 'contacts', label: 'Contacts', icon: 'people', badge: 0 },
     { id: 'settings', label: 'Settings', icon: 'settings', badge: 0 },

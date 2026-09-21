@@ -791,6 +791,23 @@ app.get('/api/groups/:id/members', async (req: Request, res: Response): Promise<
   }
 });
 
+// 14. Groups: Delete a chat group
+app.delete('/api/groups/:id', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const groupId = parseInt(req.params.id as string, 10);
+    const username = (req.headers['x-username'] as string) || (req.query.username as string) || (req.body?.username as string);
+    if (!groupId) {
+      return res.status(400).json({ success: false, error: 'Valid group ID is required' });
+    }
+
+    await groupService.deleteGroup(groupId, username);
+    res.json({ success: true, message: 'Group deleted successfully' });
+  } catch (err: any) {
+    console.error('Delete group error:', err.message);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 // Initialize WebRTC Signaling Server
 signalingService.init(httpServer);
 

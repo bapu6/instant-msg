@@ -186,6 +186,8 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
     return true;
   });
 
+  const totalUnreadCount = dbChats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0);
+
   const handleChatPress = (chat: ChatContact) => {
     if (chat.isGroup) {
       const groupId = parseInt(chat.id.replace('group_', ''), 10);
@@ -411,7 +413,11 @@ export default function HomeScreen({ onSelectChat, onSelectGroup, onStartCall }:
         <Ionicons name="chatbubble-ellipses" size={24} color="#FFFFFF" />
       </TouchableOpacity>
 
-      <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNavBar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        unreadChatsCount={totalUnreadCount}
+      />
 
       <NewGroupModal
         visible={isNewGroupModalVisible}

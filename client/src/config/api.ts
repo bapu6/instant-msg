@@ -569,6 +569,21 @@ export const api = {
     }
     return data.members;
   },
+
+  async deleteGroup(groupId: number | string, username?: string): Promise<boolean> {
+    const res = await fetch(`${API_BASE_URL}/api/groups/${groupId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(username ? { 'x-username': username } : {}),
+      },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to delete group');
+    }
+    return true;
+  },
 };
 
 export default api;

@@ -169,6 +169,29 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
 
   const insets = useSafeAreaInsets();
 
+  const handleDeleteGroup = () => {
+    Alert.alert(
+      'Delete Group',
+      `Are you sure you want to permanently delete "${group.name}"? All messages will be removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Group',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteGroup(group.id, currentUser?.username);
+              Alert.alert('Group Deleted', `Group "${group.name}" has been removed.`);
+              onBack();
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete group');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
@@ -205,12 +228,21 @@ export default function GroupChatScreen({ group, onBack }: GroupChatScreenProps)
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => Alert.alert('Group Info', `${group.name}\n${group.description || 'No description'}`)}
-        >
-          <Ionicons name="information-circle-outline" size={24} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => Alert.alert('Group Info', `${group.name}\n${group.description || 'No description'}`)}
+          >
+            <Ionicons name="information-circle-outline" size={24} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.iconBtn, { marginLeft: 8 }]}
+            onPress={handleDeleteGroup}
+          >
+            <Ionicons name="trash-outline" size={22} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Messages List */}
@@ -331,6 +363,10 @@ const styles = StyleSheet.create({
   memberCountText: {
     fontSize: 12,
     color: theme.colors.textSecondary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   iconBtn: {
     padding: 6,

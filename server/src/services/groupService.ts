@@ -203,6 +203,44 @@ export async function addMemberToGroup(
   );
 }
 
+export async function deleteGroup(
+  groupId: number,
+  requestedBy?: string
+): Promise<boolean> {
+  if (!groupId) {
+    throw new Error('Group ID is required');
+  }
+
+  // If requestedBy is provided and not admin bypass, check permissions
+  if (requestedBy && requestedBy.toLowerCase() !== 'admin') {
+    const groupRes = await db.query<ChatGroup>(
+      `SELECT * FROM chat_groups WHERE id = $1`,
+      [groupId]
+    );
+    if (groupRes.rows.length === 0) {
+      throw new Error('Group not found');
+    }
+
+    const group = groupRes.rows[0];
+    const isCreator = group.created_by.toLowerCase() === requestedBy.toLowerCase();
+
+    if (!isCreator) {
+      const memberRes = await db.query(
+        `SELECT role FROM group_members WHERE group_id = $1 AND username = $2`,
+        [groupId, requestedBy.toLowerCase()]
+      );
+      const isAdmin = memberRes.rows.length > 0 && memberRes.rows[0].role === 'admin';
+      if (!isAdmin) {
+        throw new Error('Only the group creator or an admin can delete this group');
+      }
+    }
+  }
+
+  // Delete chat group (cascades to group_members and group_messages)
+  await db.query(`DELETE FROM chat_groups WHERE id = $1`, [groupId]);
+  return true;
+}
+
 export default {
   createGroup,
   getUserGroups,
@@ -210,4 +248,5 @@ export default {
   saveGroupMessage,
   getGroupMembers,
   addMemberToGroup,
+  deleteGroup,
 };

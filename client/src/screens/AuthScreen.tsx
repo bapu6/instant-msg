@@ -73,13 +73,9 @@ export default function AuthScreen() {
       const res = await sendOtp(full);
       setAuthMode('otp');
       setResendCountdown(30);
-      // On native mobile, Firebase sends a real SMS — never show or auto-fill the code.
-      // On web only (dev), show the debug code so the flow can be tested without SMS.
-      if (res?.debugCode && Platform.OS === 'web') {
-        setInfoMsg(`[Dev] Verification code: ${res.debugCode}`);
-        // Do NOT auto-fill otpCode so the user still has to type it manually
-      } else if (Platform.OS !== 'web') {
-        // Native: Firebase SMS was triggered (or fallback backend OTP sent via SMS in future)
+      if (res?.debugCode) {
+        setInfoMsg(`Verification code: ${res.debugCode}`);
+      } else {
         setInfoMsg('Verification code sent to your mobile number.');
       }
     } catch (err: any) {

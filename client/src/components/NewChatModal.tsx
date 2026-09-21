@@ -9,9 +9,10 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { SearchedUser, ChatContact } from '../types';
@@ -25,6 +26,7 @@ interface NewChatModalProps {
 }
 
 export default function NewChatModal({ visible, onClose, onSelectUser }: NewChatModalProps) {
+  const insets = useSafeAreaInsets();
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
@@ -87,7 +89,16 @@ export default function NewChatModal({ visible, onClose, onSelectUser }: NewChat
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <SafeAreaView style={styles.safeArea}>
+      <View
+        style={[
+          styles.safeArea,
+          {
+            paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 36 : 16),
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
+        <StatusBar style="dark" />
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
@@ -188,7 +199,7 @@ export default function NewChatModal({ visible, onClose, onSelectUser }: NewChat
             </Text>
           </View>
         )}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
