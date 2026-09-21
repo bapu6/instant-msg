@@ -126,6 +126,8 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response): Promise<any>
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(cleanPhone, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
 
+    console.log(`📱 [OTP] Generated 6-digit OTP ${code} for ${cleanPhone} (valid 10 mins)`);
+
     res.json({
       success: true,
       message: 'OTP sent successfully',
@@ -170,16 +172,33 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response): Promise<an
   }
 });
 
-// 2.3 Direct Phone Login (e.g. verified by Firebase client-side SDK)
+// 2.3 Phone Login (requires valid verified OTP code)
 app.post('/api/auth/phone-login', async (req: Request, res: Response): Promise<any> => {
   try {
-    const { phoneNumber, displayName, email, avatar } = req.body;
+    const { phoneNumber, code, displayName, email, avatar } = req.body;
     if (!phoneNumber) {
       return res.status(400).json({ success: false, error: 'Phone number is required' });
     }
 
+    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    
+    // Require valid OTP code verification unless session was previously verified
+    if (code) {
+      const cleanCode = code.trim();
+      const stored = otpStore.get(cleanPhone);
+      const isValid = Boolean(stored && stored.code === cleanCode && stored.expiresAt > Date.now());
+
+      if (!isValid) {
+        return res.status(401).json({ success: false, error: 'Invalid or expired OTP code' });
+      }
+      otpStore.delete(cleanPhone);
+    } else {
+      // Reject direct unverified phone login requests
+      return res.status(401).json({ success: false, error: 'OTP verification code is required for phone login' });
+    }
+
     const user = await authService.loginOrRegisterWithPhone({
-      phoneNumber,
+      phoneNumber: cleanPhone,
       displayName,
       email,
       avatar,
