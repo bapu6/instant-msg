@@ -216,9 +216,10 @@ function getFileIconAndColor(filename?: string | null): FileIconInfo {
 interface MessageBubbleProps {
   message: Message;
   isMe: boolean;
+  partnerPublicKey?: string | null;
 }
 
-export default function MessageBubble({ message, isMe }: MessageBubbleProps) {
+export default function MessageBubble({ message, isMe, partnerPublicKey }: MessageBubbleProps) {
   const { currentUser } = useAuth();
   const {
     body,
@@ -230,6 +231,7 @@ export default function MessageBubble({ message, isMe }: MessageBubbleProps) {
     encryption_key,
     encryption_iv,
     created_at,
+    is_pending,
   } = message;
 
   const [decryptedUrl, setDecryptedUrl] = useState<string | null>(null);
@@ -247,14 +249,15 @@ export default function MessageBubble({ message, isMe }: MessageBubbleProps) {
     } catch {}
 
     // If key length is not 32, it's an encrypted media key payload.
-    // Try decrypting with ECDH shared secret if private key is available
-    if (currentUser?.private_key) {
+    // Decrypt with ECDH shared secret using currentUser private key & partnerPublicKey
+    const targetPubKey = partnerPublicKey || currentUser?.public_key || '';
+    if (currentUser?.private_key && targetPubKey) {
       try {
         const decrypted = cryptoService.decryptMediaKey(
           encryption_key,
           encryption_iv,
           currentUser.private_key,
-          currentUser.public_key || ''
+          targetPubKey
         );
         return decrypted;
       } catch (e) {

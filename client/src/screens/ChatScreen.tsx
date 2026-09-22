@@ -625,6 +625,7 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
             <MessageBubble
               message={item}
               isMe={item.sender?.toLowerCase() === currentUser?.username?.toLowerCase()}
+              partnerPublicKey={contactPublicKeyRef.current}
             />
           )}
           contentContainerStyle={styles.messagesList}

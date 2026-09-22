@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import auth from '@react-native-firebase/auth';
 import api from '../config/api';
 import { User } from '../types';
 
@@ -17,7 +18,7 @@ export function toE164Phone(phone: string, defaultCountryCode: string = '+91'): 
 }
 
 /**
- * Send real SMS verification code via Firebase Phone Auth on Android (v26 modular API).
+ * Send real SMS verification code via Firebase Phone Auth on Android.
  * Uses SafetyNet/Play Integrity for silent verification (no browser reCAPTCHA).
  * Falls back to backend OTP if Firebase fails.
  */
@@ -28,16 +29,12 @@ export async function sendFirebasePhoneOtp(
 
   if (Platform.OS === 'android') {
     try {
-      const rnfModule = require('@react-native-firebase/auth');
-      const authFn = rnfModule.default || rnfModule;
-      const auth = typeof authFn === 'function' ? authFn() : authFn;
-
-      if (auth.settings && typeof auth.settings.forceRecaptchaFlow !== 'undefined') {
-        auth.settings.forceRecaptchaFlow = false;
+      if (auth().settings && typeof auth().settings.forceRecaptchaFlow !== 'undefined') {
+        auth().settings.forceRecaptchaFlow = false;
       }
 
       console.log('🔥 [Firebase Native] Requesting SMS OTP for:', cleanPhone);
-      confirmationResult = await auth.signInWithPhoneNumber(cleanPhone);
+      confirmationResult = await auth().signInWithPhoneNumber(cleanPhone);
       console.log('✅ [Firebase Native] Cellular SMS sent via Firebase for', cleanPhone);
       return { success: true, isNativeFirebase: true };
     } catch (err: any) {
