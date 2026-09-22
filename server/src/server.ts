@@ -113,6 +113,14 @@ app.post('/api/register', async (req: Request, res: Response) => {
 // In-memory OTP storage for mobile verification: phone -> { code, expiresAt }
 const otpStore = new Map<string, { code: string; expiresAt: number }>();
 
+function toE164Phone(phone: string, defaultCountryCode: string = '+91'): string {
+  let cleaned = phone.trim().replace(/[\s\(\)\-]/g, '');
+  if (!cleaned.startsWith('+')) {
+    cleaned = `${defaultCountryCode}${cleaned.replace(/^0+/, '')}`;
+  }
+  return cleaned;
+}
+
 // 2.1 Send Mobile OTP
 app.post('/api/auth/send-otp', async (req: Request, res: Response): Promise<any> => {
   try {
@@ -121,7 +129,7 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response): Promise<any>
       return res.status(400).json({ success: false, error: 'Phone number is required' });
     }
 
-    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    const cleanPhone = toE164Phone(phoneNumber);
     // Generate secure random 6-digit OTP
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(cleanPhone, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
@@ -146,7 +154,7 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response): Promise<an
       return res.status(400).json({ success: false, error: 'Phone number and OTP are required' });
     }
 
-    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    const cleanPhone = toE164Phone(phoneNumber);
     const cleanCode = code.trim();
 
     // Verification check: strictly requires valid, unexpired code from stored session
@@ -180,7 +188,7 @@ app.post('/api/auth/phone-login', async (req: Request, res: Response): Promise<a
       return res.status(400).json({ success: false, error: 'Phone number is required' });
     }
 
-    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    const cleanPhone = toE164Phone(phoneNumber);
     
     // Require valid OTP code verification unless session was previously verified
     if (code) {

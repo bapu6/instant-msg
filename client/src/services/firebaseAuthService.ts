@@ -9,11 +9,23 @@ let confirmationResult: any = null;
  * Send real SMS verification code via Firebase Phone Auth on Android (v26 modular API).
  * Uses SafetyNet/Play Integrity for silent verification (no browser reCAPTCHA).
  * Falls back to backend OTP if Firebase fails.
+export function toE164Phone(phone: string, defaultCountryCode: string = '+91'): string {
+  let cleaned = phone.trim().replace(/[\s\(\)\-]/g, '');
+  if (!cleaned.startsWith('+')) {
+    cleaned = `${defaultCountryCode}${cleaned.replace(/^0+/, '')}`;
+  }
+  return cleaned;
+}
+
+/**
+ * Send real SMS verification code via Firebase Phone Auth on Android (v26 modular API).
+ * Uses SafetyNet/Play Integrity for silent verification (no browser reCAPTCHA).
+ * Falls back to backend OTP if Firebase fails.
  */
 export async function sendFirebasePhoneOtp(
   phoneNumber: string
 ): Promise<{ success: boolean; isNativeFirebase: boolean }> {
-  const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+  const cleanPhone = toE164Phone(phoneNumber);
 
   if (Platform.OS === 'android') {
     try {
@@ -53,7 +65,7 @@ export async function verifyFirebasePhoneOtp(
   code: string,
   displayName?: string
 ): Promise<User> {
-  const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+  const cleanPhone = toE164Phone(phoneNumber);
   const cleanCode = code.trim();
 
   if (Platform.OS === 'android' && confirmationResult) {
