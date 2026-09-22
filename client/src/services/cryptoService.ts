@@ -158,20 +158,47 @@ export async function readAssetBytes(asset: {
 
   // 2. Mobile (Android & iOS): Use expo-file-system native readers
   if (Platform.OS !== 'web') {
-    // 2a. Legacy FileSystem base64 read (most reliable for content:// and file:// on Android)
+    let FileSystemLegacy: any = null;
     try {
-      const FileSystemLegacy = require('expo-file-system/legacy');
-      const base64 = await FileSystemLegacy.readAsStringAsync(asset.uri, {
-        encoding: FileSystemLegacy.EncodingType.Base64,
-      });
-      if (base64) {
-        return base64ToUint8Array(base64);
-      }
-    } catch (err) {
-      console.warn('[readAssetBytes] Legacy FileSystem read failed:', err);
+      FileSystemLegacy = require('expo-file-system/legacy');
+    } catch {
+      try {
+        FileSystemLegacy = require('expo-file-system');
+      } catch {}
     }
 
-    // 2b. Expo SDK 57 File.bytes()
+    if (FileSystemLegacy) {
+      let targetUri = asset.uri;
+
+      // 2a. On Android content:// URIs, copy to local cache file first
+      if (targetUri.startsWith('content://')) {
+        try {
+          const safeExt = ((asset as any).name || 'file').split('.').pop() || 'bin';
+          const cachePath = `${FileSystemLegacy.cacheDirectory}pick_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${safeExt}`;
+          await FileSystemLegacy.copyAsync({
+            from: targetUri,
+            to: cachePath,
+          });
+          targetUri = cachePath;
+        } catch (copyErr) {
+          console.warn('[readAssetBytes] copyAsync failed, using original uri:', copyErr);
+        }
+      }
+
+      // 2b. Read base64 from file URI
+      try {
+        const base64 = await FileSystemLegacy.readAsStringAsync(targetUri, {
+          encoding: FileSystemLegacy.EncodingType?.Base64 || 'base64',
+        });
+        if (base64) {
+          return base64ToUint8Array(base64);
+        }
+      } catch (readErr) {
+        console.warn('[readAssetBytes] readAsStringAsync failed:', readErr);
+      }
+    }
+
+    // 2c. Expo SDK 57 File.bytes() fallback
     try {
       const { File } = require('expo-file-system');
       const file = new File(asset.uri);
@@ -183,10 +210,7 @@ export async function readAssetBytes(asset: {
       console.warn('[readAssetBytes] Expo SDK 57 File.bytes() read failed:', err);
     }
 
-    // On mobile, fetch() does NOT support content:// URIs in React Native and throws 'Unsupported file format'.
-    if (asset.uri.startsWith('content://') || asset.uri.startsWith('file://')) {
-      throw new Error('Unable to read selected file from mobile device storage.');
-    }
+    throw new Error('Unable to read selected file from mobile device storage.');
   }
 
   // 3. Fallback to fetch for web blob: or data: URIs only
