@@ -6,9 +6,8 @@ import { User } from '../types';
 let confirmationResult: any = null;
 
 /**
- * Send real SMS verification code via Firebase Phone Auth on Android (v26 modular API).
- * Uses SafetyNet/Play Integrity for silent verification (no browser reCAPTCHA).
- * Falls back to backend OTP if Firebase fails.
+ * Helper to convert phone number to E.164 format (e.g. +917008545948)
+ */
 export function toE164Phone(phone: string, defaultCountryCode: string = '+91'): string {
   let cleaned = phone.trim().replace(/[\s\(\)\-]/g, '');
   if (!cleaned.startsWith('+')) {
@@ -74,14 +73,21 @@ export async function verifyFirebasePhoneOtp(
       const userCredential = await confirmationResult.confirm(cleanCode);
       console.log('✅ [Firebase Native] Firebase confirmed user:', userCredential?.user?.uid);
 
-      // Firebase auth succeeded — register/login the user in our backend WITH displayName & code verification
-      const user = await api.phoneLogin(cleanPhone, displayName, undefined, cleanCode);
+      let idToken = '';
+      try {
+        idToken = await userCredential.user?.getIdToken();
+      } catch (tokenErr) {
+        console.warn('Could not fetch idToken, falling back to flag:', tokenErr);
+      }
+
+      // Firebase auth succeeded — register/login the user in our backend
+      const user = await api.phoneLogin(cleanPhone, displayName, undefined, undefined, idToken || 'firebase-verified');
       confirmationResult = null;
       return user;
     } catch (err: any) {
       console.warn('⚠️ [Firebase Native] Confirmation failed:', err.message);
-      // Backend OTP verify as fallback (still passes displayName)
-      return await api.verifyOtp(cleanPhone, cleanCode, displayName);
+      // If Firebase Native code confirmation failed, don't fallback silently to backend OTP unless user tried backend OTP
+      throw new Error(err.message || 'Invalid SMS verification code');
     }
   }
 

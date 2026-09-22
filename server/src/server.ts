@@ -180,16 +180,28 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response): Promise<an
   }
 });
 
-// 2.3 Phone Login (requires valid verified OTP code)
+// 2.3 Phone Login (requires valid verified OTP code or Firebase token)
 app.post('/api/auth/phone-login', async (req: Request, res: Response): Promise<any> => {
   try {
-    const { phoneNumber, code, displayName, email, avatar } = req.body;
+    const { phoneNumber, code, displayName, email, avatar, firebaseToken } = req.body;
     if (!phoneNumber) {
       return res.status(400).json({ success: false, error: 'Phone number is required' });
     }
 
     const cleanPhone = toE164Phone(phoneNumber);
     
+    // If request has firebaseToken, the phone number was already verified by Firebase SMS on device
+    if (firebaseToken) {
+      console.log(`🔥 [Phone Login] Authenticated via Firebase token for ${cleanPhone}`);
+      const user = await authService.loginOrRegisterWithPhone({
+        phoneNumber: cleanPhone,
+        displayName,
+        email,
+        avatar,
+      });
+      return res.json({ success: true, user });
+    }
+
     // Require valid OTP code verification unless session was previously verified
     if (code) {
       const cleanCode = code.trim();

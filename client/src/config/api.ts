@@ -150,11 +150,11 @@ export const api = {
     return data.user;
   },
 
-  async phoneLogin(phoneNumber: string, displayName?: string, email?: string, code?: string): Promise<User> {
+  async phoneLogin(phoneNumber: string, displayName?: string, email?: string, code?: string, firebaseToken?: string): Promise<User> {
     const res = await fetch(`${API_BASE_URL}/api/auth/phone-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber, displayName, email, code }),
+      body: JSON.stringify({ phoneNumber, displayName, email, code, firebaseToken }),
     });
     const data = await safeJson(res);
     if (!res.ok || !data.success) {
