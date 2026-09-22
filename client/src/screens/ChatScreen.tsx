@@ -21,6 +21,7 @@ import { theme } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
 import api from '../config/api';
 import cryptoService, { readAssetBytes } from '../services/cryptoService';
+import callService from '../services/callService';
 import MessageBubble from '../components/MessageBubble';
 import Avatar from '../components/Avatar';
 import { formatLastSeen } from '../utils/presenceUtils';
