@@ -28,25 +28,22 @@ export async function sendFirebasePhoneOtp(
 
   if (Platform.OS === 'android') {
     try {
-      const rnfAuth = require('@react-native-firebase/auth');
-      const { getAuth, signInWithPhoneNumber } = rnfAuth;
+      const rnfModule = require('@react-native-firebase/auth');
+      const authFn = rnfModule.default || rnfModule;
+      const auth = typeof authFn === 'function' ? authFn() : authFn;
 
-      const auth = getAuth();
-
-      // Disable browser reCAPTCHA fallback — use Play Integrity / SafetyNet silently.
-      // This prevents Firebase from redirecting the user to an external browser.
-      // Requires the release SHA-256 fingerprint to be registered in Firebase Console.
       if (auth.settings && typeof auth.settings.forceRecaptchaFlow !== 'undefined') {
         auth.settings.forceRecaptchaFlow = false;
       }
 
       console.log('🔥 [Firebase Native] Requesting SMS OTP for:', cleanPhone);
-      confirmationResult = await signInWithPhoneNumber(auth, cleanPhone);
-      console.log('✅ [Firebase Native] SMS sent via Firebase');
+      confirmationResult = await auth.signInWithPhoneNumber(cleanPhone);
+      console.log('✅ [Firebase Native] Cellular SMS sent via Firebase for', cleanPhone);
       return { success: true, isNativeFirebase: true };
     } catch (err: any) {
-      console.warn('⚠️ [Firebase] signInWithPhoneNumber failed, falling back to backend OTP:', err.message);
+      console.error('❌ [Firebase Native] signInWithPhoneNumber failed:', err.code, err.message);
       confirmationResult = null;
+      throw new Error(err.message || 'Could not send SMS verification code.');
     }
   }
 

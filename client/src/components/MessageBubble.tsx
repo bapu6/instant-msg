@@ -16,7 +16,8 @@ import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { theme } from '../theme/theme';
 import { Message } from '../types';
-import cryptoService, { uint8ArrayToBase64 } from '../services/cryptoService';
+import { useAuth } from '../context/AuthContext';
+import cryptoService, { uint8ArrayToBase64, base64ToUint8Array } from '../services/cryptoService';
 import { API_BASE_URL } from '../config/api';
 
 function formatBytes(bytes?: number | null): string {

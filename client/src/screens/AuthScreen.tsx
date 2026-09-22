@@ -95,14 +95,9 @@ export default function AuthScreen() {
     }
     setIsSubmitting(true);
     try {
-      const res: any = await sendOtp(phoneNumber.trim());
+      await sendOtp(phoneNumber.trim());
       setOtpSent(true);
-      if (res && res.code) {
-        setOtpCode(res.code);
-        setInfoMsg(`OTP code sent! Your verification code is: ${res.code}`);
-      } else {
-        setInfoMsg(`Verification code sent to ${phoneNumber.trim()}`);
-      }
+      setInfoMsg(`Verification code sent to ${phoneNumber.trim()}`);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to send OTP code.');
     } finally {
