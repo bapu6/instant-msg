@@ -447,57 +447,56 @@ export const api = {
 
   // File & Video Upload (Multipart)
   async uploadFile(asset: AttachmentAsset): Promise<UploadResponse> {
-    // 1. Native Mobile (Android & iOS): Use native React Native FormData fetch upload
+    // 1. Native Mobile (Android & iOS): Use native expo-file-system uploadAsync
     if (Platform.OS !== 'web') {
-      let fileUri = asset.uri;
-      if (asset.bytes) {
-        const safeName = `upload_${Date.now()}_${(asset.name || 'file.enc').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      let FileSystemLegacy: any = null;
+      try {
+        FileSystemLegacy = require('expo-file-system/legacy');
+      } catch {
         try {
-          const { File, Paths } = require('expo-file-system');
-          const tempFile = new File(Paths.cache, safeName);
-          tempFile.create({ overwrite: true });
-          tempFile.write(asset.bytes);
-          fileUri = tempFile.uri;
-        } catch {
-          const FileSystemLegacy = require('expo-file-system/legacy');
-          const { uint8ArrayToBase64 } = require('../services/cryptoService');
-          fileUri = `${FileSystemLegacy.cacheDirectory}${safeName}`;
-          await FileSystemLegacy.writeAsStringAsync(fileUri, uint8ArrayToBase64(asset.bytes), {
-            encoding: FileSystemLegacy.EncodingType.Base64,
+          FileSystemLegacy = require('expo-file-system');
+        } catch {}
+      }
+
+      const safeName = `upload_${Date.now()}_${(asset.name || 'file.enc').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const fileUri = `${FileSystemLegacy.cacheDirectory}${safeName}`;
+
+      if (asset.bytes) {
+        const { uint8ArrayToBase64 } = require('../services/cryptoService');
+        await FileSystemLegacy.writeAsStringAsync(fileUri, uint8ArrayToBase64(asset.bytes), {
+          encoding: FileSystemLegacy.EncodingType?.Base64 || 'base64',
+        });
+      } else if (asset.uri && asset.uri !== fileUri) {
+        try {
+          await FileSystemLegacy.copyAsync({
+            from: asset.uri,
+            to: fileUri,
           });
+        } catch (copyErr) {
+          console.warn('[uploadFile] copyAsync fallback:', copyErr);
         }
       }
 
-      let safeMime = asset.mimeType || 'application/octet-stream';
-      if (safeMime === '*/*' || !safeMime) {
-        const ext = (asset.name || '').split('.').pop()?.toLowerCase();
-        if (ext === 'jpg' || ext === 'jpeg') safeMime = 'image/jpeg';
-        else if (ext === 'png') safeMime = 'image/png';
-        else if (ext === 'gif') safeMime = 'image/gif';
-        else if (ext === 'webp') safeMime = 'image/webp';
-        else if (ext === 'mp4') safeMime = 'video/mp4';
-        else if (ext === 'mov') safeMime = 'video/quicktime';
-        else if (ext === 'pdf') safeMime = 'application/pdf';
-        else safeMime = 'application/octet-stream';
+      // Perform native multipart upload directly via Expo FileSystem uploadAsync
+      const uploadResult = await FileSystemLegacy.uploadAsync(
+        `${API_BASE_URL}/api/upload`,
+        fileUri,
+        {
+          fieldName: 'file',
+          httpMethod: 'POST',
+          uploadType: FileSystemLegacy.FileSystemUploadType?.MULTIPART || 1,
+          headers: {
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        throw new Error(`Upload server error (${uploadResult.status}): ${uploadResult.body}`);
       }
 
-      const formData = new FormData();
-      formData.append('file', {
-        uri: fileUri,
-        name: asset.name || 'upload.bin',
-        type: safeMime,
-      } as any);
-
-      const res = await fetch(`${API_BASE_URL}/api/upload`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-        },
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = JSON.parse(uploadResult.body);
+      if (!data.success) {
         throw new Error(data.error || 'File upload failed');
       }
       return data.file;
