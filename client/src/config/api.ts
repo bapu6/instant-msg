@@ -447,7 +447,7 @@ export const api = {
 
   // File & Video Upload (Multipart)
   async uploadFile(asset: AttachmentAsset): Promise<UploadResponse> {
-    // 1. Native Mobile (Android & iOS): Use native expo-file-system uploadAsync
+    // 1. Native Mobile (Android & iOS): Use native upload with clean file:// URI
     if (Platform.OS !== 'web') {
       let FileSystemLegacy: any = null;
       try {
@@ -458,8 +458,8 @@ export const api = {
         } catch {}
       }
 
-      const safeName = `upload_${Date.now()}_${(asset.name || 'file.enc').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const fileUri = `${FileSystemLegacy.cacheDirectory}${safeName}`;
+      const safeName = (asset.name || 'file.enc').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileUri = `${FileSystemLegacy.cacheDirectory}up_${Date.now()}_${safeName}`;
 
       if (asset.bytes) {
         const { uint8ArrayToBase64 } = require('../services/cryptoService');
@@ -477,7 +477,45 @@ export const api = {
         }
       }
 
-      // Perform native multipart upload directly via Expo FileSystem uploadAsync
+      let safeMime = asset.mimeType || 'application/octet-stream';
+      if (safeMime === '*/*' || !safeMime) {
+        const ext = safeName.split('.').pop()?.toLowerCase();
+        if (ext === 'jpg' || ext === 'jpeg') safeMime = 'image/jpeg';
+        else if (ext === 'png') safeMime = 'image/png';
+        else if (ext === 'gif') safeMime = 'image/gif';
+        else if (ext === 'webp') safeMime = 'image/webp';
+        else if (ext === 'mp4') safeMime = 'video/mp4';
+        else if (ext === 'mov') safeMime = 'video/quicktime';
+        else if (ext === 'pdf') safeMime = 'application/pdf';
+        else safeMime = 'application/octet-stream';
+      }
+
+      // Method A: Standard React Native fetch + FormData on clean file:// URI
+      try {
+        const formData = new FormData();
+        formData.append('file', {
+          uri: fileUri,
+          name: asset.name || safeName,
+          type: safeMime,
+        } as any);
+
+        const res = await fetch(`${API_BASE_URL}/api/upload`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+          },
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          return data.file;
+        }
+      } catch (fetchErr) {
+        console.warn('[uploadFile] fetch FormData failed, trying uploadAsync:', fetchErr);
+      }
+
+      // Method B: Native Expo uploadAsync with non-null mimeType & parameters
       const uploadResult = await FileSystemLegacy.uploadAsync(
         `${API_BASE_URL}/api/upload`,
         fileUri,
@@ -485,9 +523,11 @@ export const api = {
           fieldName: 'file',
           httpMethod: 'POST',
           uploadType: FileSystemLegacy.FileSystemUploadType?.MULTIPART || 1,
+          mimeType: safeMime,
           headers: {
             'Accept': 'application/json',
           },
+          parameters: {},
         }
       );
 
