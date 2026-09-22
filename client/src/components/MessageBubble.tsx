@@ -218,6 +218,7 @@ interface MessageBubbleProps {
 }
 
 export default function MessageBubble({ message, isMe }: MessageBubbleProps) {
+  const { currentUser } = useAuth();
   const {
     body,
     message_type = 'text',
@@ -235,17 +236,45 @@ export default function MessageBubble({ message, isMe }: MessageBubbleProps) {
 
   const isEncrypted = Boolean(encryption_key && encryption_iv);
 
+  const resolvePlainMediaKey = (): string | null => {
+    if (!encryption_key) return null;
+    try {
+      const raw = base64ToUint8Array(encryption_key);
+      if (raw.length === 32) {
+        return encryption_key;
+      }
+    } catch {}
+
+    // If key length is not 32, it's an encrypted media key payload.
+    // Try decrypting with ECDH shared secret if private key is available
+    if (currentUser?.private_key) {
+      try {
+        const decrypted = cryptoService.decryptMediaKey(
+          encryption_key,
+          encryption_iv,
+          currentUser.private_key,
+          currentUser.public_key || ''
+        );
+        return decrypted;
+      } catch (e) {
+        console.warn('ECDH media key decryption fallback failed:', e);
+      }
+    }
+    return encryption_key;
+  };
+
   // Auto-decrypt images in client memory for direct visual rendering
   useEffect(() => {
     let active = true;
-    if (message_type === 'image' && media_url && isEncrypted && encryption_key && encryption_iv) {
+    const plainKey = resolvePlainMediaKey();
+    if (message_type === 'image' && media_url && isEncrypted && plainKey && encryption_iv) {
       setDecrypting(true);
       (async () => {
         try {
           const cipherBuffer = await fetchMediaArrayBuffer(media_url);
           const plainBuffer = await cryptoService.decryptFile(
             cipherBuffer,
-            encryption_key,
+            plainKey,
             encryption_iv
           );
           if (active) {
@@ -294,14 +323,15 @@ export default function MessageBubble({ message, isMe }: MessageBubbleProps) {
 
   const handleOpenMedia = async () => {
     if (!media_url) return;
+    const plainKey = resolvePlainMediaKey();
 
-    if (isEncrypted && encryption_key && encryption_iv) {
+    if (isEncrypted && plainKey && encryption_iv) {
       try {
         setDecrypting(true);
         const cipherBuffer = await fetchMediaArrayBuffer(media_url);
         const plainBuffer = await cryptoService.decryptFile(
           cipherBuffer,
-          encryption_key,
+          plainKey,
           encryption_iv
         );
 

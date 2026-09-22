@@ -372,7 +372,7 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
     }
   };
 
-  // Pick, Encrypt (AES-GCM 256), and Send Attachment
+  // Pick, Encrypt (AES-GCM 256), and Send Attachment asynchronously in background
   const handlePickDocument = async () => {
     if (!currentUser) return;
     try {
@@ -386,8 +386,8 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
       }
 
       const asset = result.assets[0];
-      setUploading(true);
-      setUploadStatus(`Encrypting ${asset.name}...`);
+      const contactUser = contact.username || contact.id;
+      const tempId = `temp_${Date.now()}`;
 
       // Determine true message type from original name & mime
       const ext = (asset.name || '').split('.').pop()?.toLowerCase() || '';
@@ -400,72 +400,105 @@ export default function ChatScreen({ contact, onBack, onStartCall }: ChatScreenP
         msgType = 'document';
       }
 
-      // 1. Read raw file bytes safely across Web and Mobile
-      const rawBytes = await readAssetBytes(asset);
-
-      // 2. Client-Side E2EE: Encrypt bytes with AES-GCM 256
-      const { encryptedBlob, encryptedBytes, encryptionKey, encryptionIv } = await cryptoService.encryptFile(rawBytes);
-
-      setUploadStatus(`Uploading encrypted data to S3...`);
-
-      // 3. Upload ciphertext to S3 (S3 only ever sees encrypted noise)
-      const uploaded = await api.uploadFile({
-        uri: asset.uri,
-        name: `${asset.name || 'file'}.enc`,
-        mimeType: 'application/octet-stream',
-        size: encryptedBytes.length,
-        blob: encryptedBlob || undefined,
-        bytes: encryptedBytes,
-      });
-
-      setUploadStatus('Securing conversation...');
-
-      const contactUser = contact.username || contact.id;
-
-      // 4. Encrypt media key with pairwise ECDH shared secret
-      let pubKey = contactPublicKeyRef.current;
-      if (!pubKey && !contact.isGroup) {
-        try {
-          pubKey = await api.getUserPublicKey(contactUser);
-          if (pubKey) setContactPublicKey(pubKey);
-        } catch {}
-      }
-
-      let payloadEncryptionKey = encryptionKey;
-      let payloadEncryptionIv = encryptionIv;
-
-      if (pubKey && currentUser.private_key) {
-        const encKey = cryptoService.encryptMediaKey(
-          encryptionKey,
-          currentUser.private_key,
-          pubKey
-        );
-        payloadEncryptionKey = encKey.encryptedKey;
-        payloadEncryptionIv = encKey.keyIv;
-      }
-
-      // 5. Save message with S3 media URL and encrypted media key
-      const saved = await api.sendMessage({
+      // 1. Immediately append pending message to chat list so user is NOT blocked from typing or scrolling
+      const pendingMsg: Message = {
+        id: tempId as any,
         sender: currentUser.username,
         recipient: contactUser,
-        body: '',
+        body: `Encrypting & uploading ${asset.name}...`,
         message_type: msgType,
-        media_url: uploaded.url,
         media_name: asset.name,
-        media_size: asset.size || encryptedBytes.length,
+        media_size: asset.size,
         media_mime: asset.mimeType,
-        encryption_key: payloadEncryptionKey,
-        encryption_iv: payloadEncryptionIv,
-      });
+        created_at: new Date().toISOString(),
+        is_pending: true,
+      };
+      setMessages((prev) => [...prev, pendingMsg]);
 
-      // Retain decrypted local key for immediate view
-      setMessages((prev) => [...prev, { ...saved, encryption_key: encryptionKey, encryption_iv: encryptionIv }]);
+      // 2. Perform background encryption & upload asynchronously
+      (async () => {
+        try {
+          const rawBytes = await readAssetBytes(asset);
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === (tempId as any) ? { ...m, body: `Encrypting (AES-256-GCM)...` } : m
+            )
+          );
+
+          const { encryptedBlob, encryptedBytes, encryptionKey, encryptionIv } = await cryptoService.encryptFile(rawBytes);
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === (tempId as any) ? { ...m, body: `Uploading encrypted file...` } : m
+            )
+          );
+
+          const uploaded = await api.uploadFile({
+            uri: asset.uri,
+            name: `${asset.name || 'file'}.enc`,
+            mimeType: 'application/octet-stream',
+            size: encryptedBytes.length,
+            blob: encryptedBlob || undefined,
+            bytes: encryptedBytes,
+          });
+
+          let pubKey = contactPublicKeyRef.current;
+          if (!pubKey && !contact.isGroup) {
+            try {
+              pubKey = await api.getUserPublicKey(contactUser);
+              if (pubKey) setContactPublicKey(pubKey);
+            } catch {}
+          }
+
+          let payloadEncryptionKey = encryptionKey;
+          let payloadEncryptionIv = encryptionIv;
+
+          if (pubKey && currentUser.private_key) {
+            const encKey = cryptoService.encryptMediaKey(
+              encryptionKey,
+              currentUser.private_key,
+              pubKey
+            );
+            payloadEncryptionKey = encKey.encryptedKey;
+            payloadEncryptionIv = encKey.keyIv;
+          }
+
+          const saved = await api.sendMessage({
+            sender: currentUser.username,
+            recipient: contactUser,
+            body: '',
+            message_type: msgType,
+            media_url: uploaded.url,
+            media_name: asset.name,
+            media_size: asset.size || encryptedBytes.length,
+            media_mime: asset.mimeType,
+            encryption_key: payloadEncryptionKey,
+            encryption_iv: payloadEncryptionIv,
+          });
+
+          // Update temporary pending bubble with real sent message
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === (tempId as any)
+                ? { ...saved, encryption_key: encryptionKey, encryption_iv: encryptionIv }
+                : m
+            )
+          );
+        } catch (err: any) {
+          console.error('Background E2EE Upload failed:', err);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === (tempId as any)
+                ? { ...m, body: `Upload failed: ${err.message || 'Error'}`, is_error: true }
+                : m
+            )
+          );
+        }
+      })();
     } catch (err: any) {
-      console.error('E2EE Upload failed:', err);
-      Alert.alert('Upload Failed', err.message || 'Could not encrypt or upload file');
-    } finally {
-      setUploading(false);
-      setUploadStatus('');
+      console.error('Pick document failed:', err);
+      Alert.alert('File Picker Error', err.message || 'Could not select file');
     }
   };
 
